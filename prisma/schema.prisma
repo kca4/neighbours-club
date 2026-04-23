@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MEMBER
+  ADMIN
+}
+
+enum DealStatus {
+  DRAFT
+  OPEN
+  CLOSING_SUCCESS
+  CLOSING_FAILED
+  FULFILLING
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderStatus {
+  AUTHORIZED
+  CAPTURED
+  CAPTURE_FAILED
+  VOIDED
+  PICKED_UP
+  REFUNDED
+  NO_SHOW
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  name            String
+  phone           String?
+  role            Role      @default(MEMBER)
+  stripeCustomerId String?  @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  orders          Order[]
+  createdDeals    Deal[]    @relation("DealCreator")
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  name        String
+  contactName String?
+  contactEmail String?
+  contactPhone String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deals       Deal[]
+}
+
+model Deal {
+  id                  String     @id @default(cuid())
+  title               String
+  slug                String     @unique
+  description         String     @db.Text
+  imageUrl            String?
+
+  supplierId          String
+  supplier            Supplier   @relation(fields: [supplierId], references: [id])
+
+  createdById         String
+  createdBy           User       @relation("DealCreator", fields: [createdById], references: [id])
+
+  tiers               DealTier[]
+  minimumMembers      Int
+  maximumMembers      Int?
+  maxQuantityPerMember Int       @default(1)
+
+  opensAt             DateTime
+  closesAt            DateTime
+
+  pickupLocation      String
+  pickupAddress       String
+  pickupWindowStart   DateTime
+  pickupWindowEnd     DateTime
+  pickupInstructions  String?    @db.Text
+
+  status              DealStatus @default(DRAFT)
+  finalPrice          Decimal?   @db.Decimal(10, 2)
+  finalTierIndex      Int?
+  midpointReminderSentAt DateTime?
+
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  orders              Order[]
+
+  @@index([status, closesAt])
+  @@index([slug])
+}
+
+model DealTier {
+  id              String   @id @default(cuid())
+  dealId          String
+  deal            Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  minMembers      Int
+  maxMembers      Int?
+  pricePerUnit    Decimal  @db.Decimal(10, 2)
+  tierOrder       Int
+
+  @@unique([dealId, tierOrder])
+  @@index([dealId])
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+
+  dealId            String
+  deal              Deal        @relation(fields: [dealId], references: [id])
+
+  quantity          Int
+  maxAuthorizedAmount Decimal   @db.Decimal(10, 2)
+  finalAmount       Decimal?    @db.Decimal(10, 2)
+
+  stripePaymentIntentId String? @unique
+  status            OrderStatus @default(AUTHORIZED)
+
+  pickedUpAt        DateTime?
+  pickedUpBy        String?
+  pickupReminderSentAt DateTime?
+  notes             String?     @db.Text
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@unique([userId, dealId])
+  @@index([dealId, status])
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId])
+}
