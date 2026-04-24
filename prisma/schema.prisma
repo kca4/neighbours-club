@@ -23,6 +23,7 @@ enum DealStatus {
 }
 
 enum OrderStatus {
+  PENDING_AUTHORIZATION
   AUTHORIZED
   CAPTURED
   CAPTURE_FAILED
@@ -128,7 +129,7 @@ model Order {
   finalAmount       Decimal?    @db.Decimal(10, 2)
 
   stripePaymentIntentId String? @unique
-  status            OrderStatus @default(AUTHORIZED)
+  status            OrderStatus @default(PENDING_AUTHORIZATION)
 
   pickedUpAt        DateTime?
   pickedUpBy        String?
