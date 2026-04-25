@@ -39,7 +39,7 @@ export default async function DealDetailPage({
   if (!deal) notFound();
 
   const confirmedCount = deal.orders.filter((o) =>
-    [OrderStatus.AUTHORIZED, OrderStatus.CAPTURED, OrderStatus.PICKED_UP].includes(o.status),
+    ([OrderStatus.AUTHORIZED, OrderStatus.CAPTURED, OrderStatus.PICKED_UP] as OrderStatus[]).includes(o.status),
   ).length;
   const pendingCount = deal.orders.filter(
     (o) => o.status === OrderStatus.PENDING_AUTHORIZATION,

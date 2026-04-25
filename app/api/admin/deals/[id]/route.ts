@@ -72,7 +72,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Deal not found" }, { status: 404 });
   }
 
-  if (TERMINAL_STATUSES.includes(deal.status)) {
+  if ((TERMINAL_STATUSES as DealStatus[]).includes(deal.status)) {
     return NextResponse.json(
       { error: "Deal is no longer editable" },
       { status: 400 },

@@ -28,7 +28,7 @@ export default async function EditDealPage({
 
   if (!deal) notFound();
 
-  const isTerminal = ![DealStatus.DRAFT, DealStatus.OPEN].includes(deal.status);
+  const isTerminal = !([DealStatus.DRAFT, DealStatus.OPEN] as DealStatus[]).includes(deal.status);
 
   if (isTerminal) {
     return (

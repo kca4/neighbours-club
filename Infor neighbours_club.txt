@@ -1,0 +1,3 @@
+Window 1: npm run dev
+Window 2: stripe listen --forward-to localhost:3000/api/stripe/webhook
+Window 3: npx prisma studio

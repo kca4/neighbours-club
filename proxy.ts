@@ -25,13 +25,21 @@ export default auth((req) => {
     pathname.startsWith("/api/deals/");
 
   if (isAdminRoute || isMemberRoute) {
+    const isApiRoute = pathname.startsWith("/api/");
+
     if (!session) {
+      if (isApiRoute) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
       const url = new URL("/signin", req.url);
       url.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(url);
     }
 
     if (isAdminRoute && session.user.role !== "ADMIN") {
+      if (isApiRoute) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
       return NextResponse.redirect(new URL("/my-deals", req.url));
     }
   }
