@@ -92,6 +92,7 @@ model Deal {
   finalPrice          Decimal?   @db.Decimal(10, 2)
   finalTierIndex      Int?
   midpointReminderSentAt DateTime?
+  closingProcessedAt  DateTime?
 
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
@@ -129,6 +130,7 @@ model Order {
   finalAmount       Decimal?    @db.Decimal(10, 2)
 
   stripePaymentIntentId String? @unique
+  recoveryToken     String?     @unique
   status            OrderStatus @default(PENDING_AUTHORIZATION)
 
   pickedUpAt        DateTime?

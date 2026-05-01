@@ -306,6 +306,46 @@ export default async function DealPage({
         </dl>
       </div>
 
+      {/* Post-closure status messages */}
+      {deal.status === DealStatus.CLOSING_SUCCESS && (
+        <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-6">
+          <p className="font-semibold text-green-800">Deal closed successfully!</p>
+          <p className="mt-1 text-sm text-green-700">
+            The threshold was reached. Payments are being captured — you&apos;ll see
+            the charge on your card shortly.
+          </p>
+        </div>
+      )}
+      {deal.status === DealStatus.FULFILLING && (
+        <div className="mb-6 rounded-2xl border border-accent/20 bg-accent/5 p-6">
+          <p className="font-semibold text-accent">Payments captured — pickup coming up!</p>
+          <p className="mt-1 text-sm text-foreground/70">
+            This deal is confirmed and your payment has been charged. Check{" "}
+            <a href="/my-deals" className="font-semibold text-accent hover:underline">
+              My Deals
+            </a>{" "}
+            for pickup details.
+          </p>
+        </div>
+      )}
+      {deal.status === DealStatus.CLOSING_FAILED && (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-6">
+          <p className="font-semibold text-red-800">Deal did not reach the minimum</p>
+          <p className="mt-1 text-sm text-red-700">
+            Not enough members joined. All payment authorizations have been
+            released — no charge was made to your card.
+          </p>
+        </div>
+      )}
+      {deal.status === DealStatus.COMPLETED && (
+        <div className="mb-6 rounded-2xl border border-foreground/10 bg-foreground/[0.02] p-6">
+          <p className="font-semibold text-foreground">This deal is complete</p>
+          <p className="mt-1 text-sm text-foreground/60">
+            Pickup has concluded. Thanks to everyone who participated!
+          </p>
+        </div>
+      )}
+
       {/* Call to action */}
       {isOpen && (
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6">
