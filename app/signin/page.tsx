@@ -10,6 +10,7 @@ function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/my-deals";
+  const message = searchParams.get("message");
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,6 +41,12 @@ function SignInForm() {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
+      {message === "password-updated" && (
+        <div role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-700">
+          Password updated — please sign in with your new password.
+        </div>
+      )}
+
       {error && (
         <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
           {error}
@@ -76,6 +83,11 @@ function SignInForm() {
           className="block w-full rounded-lg border border-foreground/20 bg-white px-4 py-3 text-foreground placeholder:text-foreground/40 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           placeholder="Your password"
         />
+        <div className="mt-1.5 text-right">
+          <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+            Forgot password?
+          </Link>
+        </div>
       </div>
 
       <button

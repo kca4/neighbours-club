@@ -7,9 +7,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
 enum Role {
   MEMBER
   ADMIN
+  RESTAURANT_OWNER
+  COURIER
 }
 
 enum DealStatus {
@@ -33,20 +37,87 @@ enum OrderStatus {
   NO_SHOW
 }
 
-model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  passwordHash    String
-  name            String
-  phone           String?
-  role            Role      @default(MEMBER)
-  stripeCustomerId String?  @unique
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  orders          Order[]
-  createdDeals    Deal[]    @relation("DealCreator")
+enum DeliveryOrderStatus {
+  pending
+  accepted
+  cooking
+  ready
+  picked_up
+  on_the_way
+  delivered
+  cancelled
 }
+
+enum PartnerApplicationStatus {
+  in_progress
+  submitted
+  approved
+  rejected
+}
+
+// ─── Core Models ──────────────────────────────────────────────────────────────
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String
+  name             String
+  firstName        String?
+  phone            String?
+  role             Role      @default(MEMBER)
+  stripeCustomerId String?   @unique
+
+  // Address for delivery orders
+  deliveryAddressLine1 String?
+  deliveryAddressLine2 String?
+  deliveryAddressCity  String?
+  deliveryAddressPostal String?
+
+  // Neighbourhood membership
+  neighbourhoodId  String?
+  neighbourhood    Neighbourhood? @relation(fields: [neighbourhoodId], references: [id])
+
+  // Onboarding
+  hasCompletedOnboarding Boolean @default(false)
+
+  // Driver fields
+  isOnline         Boolean   @default(false)
+  restaurantId     String?   // if RESTAURANT_OWNER, their restaurant
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  orders              Order[]
+  createdDeals        Deal[]           @relation("DealCreator")
+  resetTokens         PasswordResetToken[]
+  deliveryOrders      DeliveryOrder[]  @relation("CustomerOrders")
+  driverOrders        DeliveryOrder[]  @relation("DriverOrders")
+  noteReactions       NoteReaction[]
+  notesSubscription   NotesSubscriber?
+  partnerApplication  PartnerApplication?
+  savedNotes          SavedNote[]
+  neighbourhoodWaitlist NeighbourhoodWaitlist[]
+  restaurant          Restaurant?      @relation("RestaurantOwner")
+
+  @@index([neighbourhoodId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+// ─── Group-buy Models (existing) ──────────────────────────────────────────────
 
 model Supplier {
   id          String   @id @default(cuid())
@@ -145,6 +216,231 @@ model Order {
   @@index([dealId, status])
   @@index([userId])
 }
+
+// ─── Delivery / Restaurant Models ─────────────────────────────────────────────
+
+model Neighbourhood {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  city        String   @default("Ottawa")
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users         User[]
+  restaurants   Restaurant[]
+  waitlist      NeighbourhoodWaitlist[]
+
+  @@index([slug])
+}
+
+model Restaurant {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  name            String
+  cuisine         String
+  address         String
+  phone           String?
+  hours           Json     @default("{}")
+  description     String?  @db.Text
+  ownerName       String?
+  ownerQuote      String?
+  heroImageUrl    String?
+  logoUrl         String?
+  isActive        Boolean  @default(false)
+  isPaused        Boolean  @default(false)
+  rating          Decimal? @db.Decimal(3, 2)
+  reviewCount     Int      @default(0)
+  estimatedMinMin Int      @default(25)
+  estimatedMinMax Int      @default(35)
+
+  neighbourhoodId String?
+  neighbourhood   Neighbourhood? @relation(fields: [neighbourhoodId], references: [id])
+
+  // Owner link
+  ownerId         String?  @unique
+  owner           User?    @relation("RestaurantOwner", fields: [ownerId], references: [id])
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  menuItems       MenuItem[]
+  deliveryOrders  DeliveryOrder[]
+
+  @@index([slug])
+  @@index([neighbourhoodId, isActive])
+}
+
+model MenuItem {
+  id           String  @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  price        Decimal @db.Decimal(10, 2)
+  category     String
+  tags         String[]
+  imageUrl     String?
+  colorHex     String?
+  isAvailable  Boolean @default(true)
+  sortOrder    Int     @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([restaurantId, category])
+}
+
+model DeliveryOrder {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation("CustomerOrders", fields: [userId], references: [id])
+
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id])
+
+  driverId        String?
+  driver          User?    @relation("DriverOrders", fields: [driverId], references: [id])
+
+  // Items snapshot (JSON so prices are locked at order time)
+  items           Json
+
+  subtotal        Decimal  @db.Decimal(10, 2)
+  deliveryFee     Decimal  @db.Decimal(10, 2)
+  serviceFee      Decimal  @db.Decimal(10, 2)
+  tax             Decimal  @db.Decimal(10, 2)
+  tip             Decimal  @db.Decimal(10, 2)
+  tipPct          Int?
+  total           Decimal  @db.Decimal(10, 2)
+
+  status          DeliveryOrderStatus @default(pending)
+
+  stripePaymentIntentId String? @unique
+
+  // Address snapshot (JSON so user can change address later without affecting history)
+  deliveryAddress Json
+
+  driverNote      String?  @db.Text
+
+  // Timing
+  estimatedDeliveryAt DateTime?
+  acceptedAt          DateTime?
+  cookingStartedAt    DateTime?
+  readyAt             DateTime?
+  pickedUpAt          DateTime?
+  deliveredAt         DateTime?
+
+  // Photo proof
+  pickupPhotoUrl   String?
+  dropoffPhotoUrl  String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+  @@index([restaurantId, status])
+  @@index([driverId, status])
+}
+
+// ─── Notes / Editorial Models ─────────────────────────────────────────────────
+
+model NoteReaction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issueId   String
+  reaction  String   // "love" | "fire" | "thanks" | "cozy"
+  createdAt DateTime @default(now())
+
+  @@unique([userId, issueId])
+  @@index([issueId])
+}
+
+model NotesSubscriber {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+model SavedNote {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issueId   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, issueId])
+}
+
+// ─── Partner Onboarding ───────────────────────────────────────────────────────
+
+model PartnerApplication {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  currentStep     Int      @default(1)
+  isSubmitted     Boolean  @default(false)
+  overallStatus   PartnerApplicationStatus @default(in_progress)
+
+  // Step 1 — About the restaurant
+  restaurantName  String?
+  cuisine         String?
+  address         String?
+  phone           String?
+  email           String?
+
+  // Step 2 — Owner info
+  ownerName       String?
+  businessNumber  String?
+
+  // Step 3 — Hours
+  hours           Json?
+
+  // Step 4 — Menu
+  menuMethod      String?   // "bulk" | "manual"
+  menuItems       Json?
+  menuBulkUrl     String?   // Vercel Blob URL for uploaded PDF/image
+  menuBulkText    String?   @db.Text
+
+  // Step 5 — Photos
+  photosSkipped   Boolean   @default(false)
+  logoUrl         String?
+  heroPhotoUrl    String?
+
+  // Step 6 — Stripe Connect
+  stripeConnectId String?
+
+  // Step 7 — Call scheduling
+  callSlot        String?
+
+  // Neighbourhood
+  neighbourhoodId String?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([overallStatus])
+}
+
+// ─── Neighbourhood Waitlist ───────────────────────────────────────────────────
+
+model NeighbourhoodWaitlist {
+  id              String   @id @default(cuid())
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email           String
+  neighbourhoodId String
+  neighbourhood   Neighbourhood @relation(fields: [neighbourhoodId], references: [id])
+  createdAt       DateTime @default(now())
+
+  @@unique([email, neighbourhoodId])
+  @@index([neighbourhoodId])
+}
+
+// ─── Audit Log ────────────────────────────────────────────────────────────────
 
 model AuditLog {
   id         String   @id @default(cuid())

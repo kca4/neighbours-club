@@ -8,13 +8,13 @@ export default function HomePage() {
           Kanata, Ottawa
         </p>
         <h1 className="mb-6 text-4xl font-bold leading-tight text-foreground sm:text-5xl">
-          Neighbours Club —{" "}
-          <span className="text-primary">your neighbourhood, organized.</span>
+          Neighbours Club
+          <br />
+          <span className="text-primary">your neighbourhood, working together.</span>
         </h1>
         <p className="mb-10 text-lg text-foreground/70">
-          Pool your buying power with neighbours to unlock lower prices on food,
-          household goods, and more. Pick up your order locally — no delivery
-          fees, no middlemen.
+          Save on everyday essentials by pooling orders with your neighbours.
+          Starting with group buys in Kanata. More to come.
         </p>
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
           <Link

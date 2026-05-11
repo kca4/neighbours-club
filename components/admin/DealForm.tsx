@@ -110,6 +110,7 @@ export default function DealForm({
   );
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [tierErrors, setTierErrors] = useState<Record<number, string>>({});
   const [serverError, setServerError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [slugAutoset, setSlugAutoset] = useState(!isEdit);
@@ -217,15 +218,39 @@ export default function DealForm({
 
       if (!res.ok) {
         const data = await res.json();
-        // Surface Zod issue messages
-        if (data.issues) {
+        if (data.issues && Array.isArray(data.issues)) {
           const fieldErrors: Record<string, string> = {};
-          for (const issue of data.issues) {
-            const path = issue.path?.join(".");
-            if (path) fieldErrors[path] = issue.message;
+          const newTierErrors: Record<number, string> = {};
+          const formLevelMessages: string[] = [];
+
+          for (const issue of data.issues as Array<{ path: (string | number)[]; message: string }>) {
+            const path = issue.path ?? [];
+            if (path.length === 0) {
+              formLevelMessages.push(issue.message);
+            } else if (path[0] === "tiers" && typeof path[1] === "number") {
+              // Tier-specific error — show under the relevant tier row
+              const tierIdx = path[1] as number;
+              // Combine if multiple messages for same tier
+              newTierErrors[tierIdx] = newTierErrors[tierIdx]
+                ? `${newTierErrors[tierIdx]}; ${issue.message}`
+                : issue.message;
+            } else {
+              const key = path.join(".");
+              fieldErrors[key] = issue.message;
+            }
           }
+
           setErrors(fieldErrors);
-          setServerError(data.error ?? "Validation failed");
+          setTierErrors(newTierErrors);
+          // Only show the generic banner for form-level issues or when there are no field errors
+          const hasFieldErrors = Object.keys(fieldErrors).length > 0 || Object.keys(newTierErrors).length > 0;
+          setServerError(
+            formLevelMessages.length > 0
+              ? formLevelMessages.join(" ")
+              : hasFieldErrors
+              ? ""
+              : (data.error ?? "Validation failed"),
+          );
         } else {
           setServerError(data.error ?? "Something went wrong");
         }
@@ -299,7 +324,7 @@ export default function DealForm({
         <div className="space-y-4">
           <F field="title" label="Title" required />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="admin-label">
                 Slug <span className="text-red-500">*</span>
@@ -372,7 +397,7 @@ export default function DealForm({
           Deal settings
           {isOpen && <span className="ml-2 text-xs font-normal text-amber-600">(locked while OPEN)</span>}
         </h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className="admin-label">Minimum members <span className="text-red-500">*</span></label>
             <input
@@ -417,7 +442,7 @@ export default function DealForm({
           Timeline
           {isOpen && <span className="ml-2 text-xs font-normal text-amber-600">(opensAt/closesAt locked)</span>}
         </h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="admin-label">Opens at (UTC) <span className="text-red-500">*</span></label>
             <input
@@ -447,11 +472,11 @@ export default function DealForm({
       <section>
         <h3 className="admin-section-heading">Pickup details</h3>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <F field="pickupLocation" label="Pickup location" required />
             <F field="pickupAddress" label="Pickup address" required />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="admin-label">Pickup window start <span className="text-red-500">*</span></label>
               <input
@@ -496,7 +521,7 @@ export default function DealForm({
           <p className="mb-3 text-xs text-foreground/50">
             Prices must decrease with each tier. First tier always starts at 1 member. Last tier has no upper bound.
           </p>
-          <TierEditor tiers={tiers} onChange={setTiers} disabled={isOpen || isLocked} />
+          <TierEditor tiers={tiers} onChange={setTiers} disabled={isOpen || isLocked} tierErrors={tierErrors} />
           {errors.tiers && <p className="admin-error mt-2">{errors.tiers}</p>}
         </section>
       )}

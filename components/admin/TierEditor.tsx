@@ -11,6 +11,8 @@ interface Props {
   tiers: TierRow[];
   onChange: (tiers: TierRow[]) => void;
   disabled?: boolean;
+  /** Per-tier error messages, keyed by tier index */
+  tierErrors?: Record<number, string>;
 }
 
 export function newTier(tiers: TierRow[]): TierRow[] {
@@ -41,7 +43,7 @@ export function removeTier(tiers: TierRow[]): TierRow[] {
   return updated.map((t, i) => ({ ...t, tierOrder: i }));
 }
 
-export default function TierEditor({ tiers, onChange, disabled }: Props) {
+export default function TierEditor({ tiers, onChange, disabled, tierErrors }: Props) {
   function updateMinMembers(index: number, value: number) {
     const updated = tiers.map((t, i) => {
       if (i === index) return { ...t, minMembers: value };
@@ -74,7 +76,7 @@ export default function TierEditor({ tiers, onChange, disabled }: Props) {
         return (
           <div
             key={i}
-            className="grid grid-cols-[1fr_1fr_1fr] gap-3 rounded-lg border border-foreground/10 bg-foreground/[0.01] p-3"
+            className="grid grid-cols-3 gap-3 rounded-lg border border-foreground/10 bg-foreground/[0.01] p-3"
           >
             <div>
               <label className="mb-1 block text-xs font-medium text-foreground/60">
@@ -118,6 +120,9 @@ export default function TierEditor({ tiers, onChange, disabled }: Props) {
                 placeholder="0.00"
               />
             </div>
+            {tierErrors?.[i] && (
+              <p className="col-span-3 mt-1 text-xs text-red-600">{tierErrors[i]}</p>
+            )}
           </div>
         );
       })}

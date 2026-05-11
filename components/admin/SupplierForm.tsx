@@ -75,7 +75,29 @@ export default function SupplierForm({ supplierId, initialData }: Props) {
 
       if (!res.ok) {
         const data = await res.json();
-        setServerError(data.error ?? "Something went wrong");
+        if (data.issues && Array.isArray(data.issues)) {
+          const fieldErrors: Record<string, string> = {};
+          const formLevelMessages: string[] = [];
+          for (const issue of data.issues as Array<{ path: (string | number)[]; message: string }>) {
+            const path = issue.path ?? [];
+            if (path.length === 0) {
+              formLevelMessages.push(issue.message);
+            } else {
+              fieldErrors[path[0] as string] = issue.message;
+            }
+          }
+          setErrors(fieldErrors);
+          const hasFieldErrors = Object.keys(fieldErrors).length > 0;
+          setServerError(
+            formLevelMessages.length > 0
+              ? formLevelMessages.join(" ")
+              : hasFieldErrors
+              ? ""
+              : (data.error ?? "Validation failed"),
+          );
+        } else {
+          setServerError(data.error ?? "Something went wrong");
+        }
         return;
       }
 
@@ -111,7 +133,7 @@ export default function SupplierForm({ supplierId, initialData }: Props) {
         {errors.name && <p className="admin-error">{errors.name}</p>}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="admin-label">Contact name</label>
           <input

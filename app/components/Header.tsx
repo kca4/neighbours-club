@@ -33,10 +33,10 @@ export default async function Header() {
         </Link>
 
         {/* Navigation */}
-        <nav className="flex items-center gap-1 sm:gap-2" aria-label="Main navigation">
+        <nav className="flex items-center gap-0.5 sm:gap-1" aria-label="Main navigation">
           <Link
             href="/deals"
-            className="min-h-[44px] flex items-center px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
+            className="min-h-[44px] flex items-center px-2 sm:px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
           >
             Deals
           </Link>
@@ -44,13 +44,13 @@ export default async function Header() {
             <>
               <Link
                 href="/signin"
-                className="min-h-[44px] flex items-center px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
+                className="min-h-[44px] flex items-center px-2 sm:px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
               >
                 Sign in
               </Link>
               <Link
                 href="/signup"
-                className="min-h-[44px] flex items-center rounded-lg bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-dark transition-colors"
+                className="min-h-[44px] flex items-center rounded-lg bg-primary px-3 sm:px-4 text-sm font-semibold text-white hover:bg-primary-dark transition-colors"
               >
                 Sign up
               </Link>
@@ -59,20 +59,20 @@ export default async function Header() {
             <>
               <Link
                 href="/my-deals"
-                className="min-h-[44px] flex items-center px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
+                className="min-h-[44px] flex items-center px-2 sm:px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
               >
                 My Deals
               </Link>
               <Link
                 href="/account"
-                className="min-h-[44px] flex items-center px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
+                className="min-h-[44px] hidden sm:flex items-center px-2 sm:px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
               >
                 Account
               </Link>
               {isAdmin && (
                 <Link
                   href="/admin"
-                  className="min-h-[44px] flex items-center px-3 text-sm font-medium text-accent hover:text-accent/80 transition-colors"
+                  className="min-h-[44px] flex items-center px-2 sm:px-3 text-sm font-medium text-accent hover:text-accent/80 transition-colors"
                 >
                   Admin
                 </Link>

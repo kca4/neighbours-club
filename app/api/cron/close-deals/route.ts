@@ -20,6 +20,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { DealStatus, OrderStatus } from "@prisma/client";
+import {
+  sendDealClosedSuccess,
+  sendDealClosedFailed,
+  sendOrderCaptureFailed,
+} from "@/lib/email";
 
 // Stripe error codes/messages that indicate the operation already happened.
 function isAlreadyCaptured(err: unknown): boolean {
@@ -91,6 +96,7 @@ export async function POST(req: NextRequest) {
           status: true,
           quantity: true,
           stripePaymentIntentId: true,
+          user: { select: { email: true, name: true } },
         },
       },
     },
@@ -229,6 +235,16 @@ export async function POST(req: NextRequest) {
               },
             }),
           ]);
+
+          // Notify member their payment failed and provide recovery link
+          await sendOrderCaptureFailed({
+            to: order.user.email,
+            memberName: order.user.name,
+            dealTitle: deal.title,
+            amountOwed: tierPrice * order.quantity,
+            recoveryToken,
+          });
+
           captureFailedCount++;
         }
       }
@@ -289,6 +305,24 @@ export async function POST(req: NextRequest) {
           },
         }),
       ]);
+
+      // Notify all successfully captured members
+      for (const order of authorizedOrders) {
+        const totalCharged = tierPrice * order.quantity;
+        await sendDealClosedSuccess({
+          to: order.user.email,
+          memberName: order.user.name,
+          dealTitle: deal.title,
+          finalPricePerUnit: tierPrice,
+          quantity: order.quantity,
+          totalCharged,
+          pickupLocation: deal.pickupLocation,
+          pickupAddress: deal.pickupAddress,
+          pickupWindowStart: deal.pickupWindowStart,
+          pickupWindowEnd: deal.pickupWindowEnd,
+          pickupInstructions: deal.pickupInstructions,
+        });
+      }
 
       results.push({
         dealId: deal.id,
@@ -388,6 +422,15 @@ export async function POST(req: NextRequest) {
           },
         }),
       ]);
+
+      // Notify all voided members
+      for (const order of allOrders) {
+        await sendDealClosedFailed({
+          to: order.user.email,
+          memberName: order.user.name,
+          dealTitle: deal.title,
+        });
+      }
 
       results.push({
         dealId: deal.id,

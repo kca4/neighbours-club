@@ -3,6 +3,7 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { OrderStatus } from "@prisma/client";
 import type Stripe from "stripe";
+import { sendOrderAuthorized } from "@/lib/email";
 
 // Next.js App Router: disable body parsing so we can read the raw bytes
 // for Stripe signature verification.
@@ -35,7 +36,24 @@ export async function POST(req: NextRequest) {
       // Primary signal: card hold confirmed. Promote PENDING_AUTHORIZATION → AUTHORIZED.
       const order = await prisma.order.findFirst({
         where: { stripePaymentIntentId: pi.id },
-        select: { id: true, status: true },
+        select: {
+          id: true,
+          status: true,
+          quantity: true,
+          maxAuthorizedAmount: true,
+          user: { select: { email: true, name: true } },
+          deal: {
+            select: {
+              title: true,
+              closesAt: true,
+              pickupLocation: true,
+              pickupAddress: true,
+              pickupWindowStart: true,
+              pickupWindowEnd: true,
+              supplier: { select: { name: true } },
+            },
+          },
+        },
       });
 
       if (!order) {
@@ -58,6 +76,21 @@ export async function POST(req: NextRequest) {
             },
           }),
         ]);
+
+        // Send confirmation email (non-blocking)
+        await sendOrderAuthorized({
+          to: order.user.email,
+          memberName: order.user.name,
+          dealTitle: order.deal.title,
+          supplierName: order.deal.supplier.name,
+          quantity: order.quantity,
+          maxAuthorizedAmount: Number(order.maxAuthorizedAmount),
+          closesAt: order.deal.closesAt,
+          pickupLocation: order.deal.pickupLocation,
+          pickupAddress: order.deal.pickupAddress,
+          pickupWindowStart: order.deal.pickupWindowStart,
+          pickupWindowEnd: order.deal.pickupWindowEnd,
+        });
       } else if (order.status === OrderStatus.AUTHORIZED) {
         // Already authorized — idempotent, do nothing
       } else {
