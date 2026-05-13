@@ -454,3 +454,18 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([userId])
 }
+
+// ─── Neighbours Notes: Raw Intel ──────────────────────────────────────────────
+
+model RawIntel {
+  id          String    @id @default(cuid())
+  sourceId    String
+  sourceUrl   String    @unique
+  title       String
+  body        String    @db.Text
+  publishedAt DateTime?
+  ingestedAt  DateTime  @default(now())
+  processed   Boolean   @default(false)
+
+  @@map("raw_intel")
+}
