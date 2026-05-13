@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
   // Window: pickup starts between 23 and 25 hours from now
-  const windowStart = new Date(now.getTime() + 23 * 60 * 60 * 1000);
+  const windowStart = new Date(now.getTime() + 18 * 60 * 60 * 1000);
   const windowEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000);
 
   const orders = await prisma.order.findMany({
