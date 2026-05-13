@@ -55,6 +55,22 @@ enum PartnerApplicationStatus {
   rejected
 }
 
+enum NoteStatus {
+  DRAFT
+  APPROVED
+  PUBLISHED
+}
+
+enum NoteCategory {
+  Transit
+  DevApp
+  Safety
+  Social
+  Cost
+  Weather
+  Other
+}
+
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model User {
@@ -458,14 +474,35 @@ model AuditLog {
 // ─── Neighbours Notes: Raw Intel ──────────────────────────────────────────────
 
 model RawIntel {
-  id          String    @id @default(cuid())
-  sourceId    String
-  sourceUrl   String    @unique
-  title       String
-  body        String    @db.Text
-  publishedAt DateTime?
-  ingestedAt  DateTime  @default(now())
-  processed   Boolean   @default(false)
+  id            String         @id @default(cuid())
+  sourceId      String
+  sourceUrl     String         @unique
+  title         String
+  body          String         @db.Text
+  publishedAt   DateTime?
+  ingestedAt    DateTime       @default(now())
+  processed     Boolean        @default(false)
+  processedNote ProcessedNote?
 
   @@map("raw_intel")
+}
+
+model ProcessedNote {
+  id                  String       @id @default(cuid())
+  rawIntelId          String       @unique
+  rawIntel            RawIntel     @relation(fields: [rawIntelId], references: [id])
+  headline            String
+  summary             String       @db.Text
+  streetOrArea        String
+  category            NoteCategory
+  impactSafety        Int
+  impactCost          Int
+  impactTime          Int
+  riskScore           Int
+  autoPublishEligible Boolean
+  status              NoteStatus   @default(DRAFT)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@map("processed_notes")
 }
