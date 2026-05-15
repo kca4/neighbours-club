@@ -110,7 +110,7 @@ model User {
   deliveryOrders      DeliveryOrder[]  @relation("CustomerOrders")
   driverOrders        DeliveryOrder[]  @relation("DriverOrders")
   noteReactions       NoteReaction[]
-  notesSubscription   NotesSubscriber?
+  notesSubscription   Subscriber?
   partnerApplication  PartnerApplication?
   savedNotes          SavedNote[]
   neighbourhoodWaitlist NeighbourhoodWaitlist[]
@@ -372,12 +372,21 @@ model NoteReaction {
   @@index([issueId])
 }
 
-model NotesSubscriber {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  email     String   @unique
-  createdAt DateTime @default(now())
+model Subscriber {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String?
+  confirmedAt        DateTime?
+  confirmationToken  String?   @unique
+  unsubscribeToken   String    @unique
+  digestEnabled      Boolean   @default(true)
+  urgentEnabled      Boolean   @default(true)
+  userId             String?   @unique
+  user               User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  subscribedAt       DateTime  @default(now())
+  confirmedIp        String?
+  source             String
+  unsubscribedAt     DateTime?
 }
 
 model SavedNote {

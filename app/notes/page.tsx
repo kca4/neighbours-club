@@ -48,7 +48,12 @@ function ImpactDots({ score, max = 5 }: { score: number; max?: number }) {
   );
 }
 
-export default async function NotesPage() {
+export default async function NotesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ subscribed?: string; unsubscribed?: string }>;
+}) {
+  const { subscribed, unsubscribed } = await searchParams;
   const notes = await prisma.processedNote.findMany({
     where: { status: { in: ["APPROVED", "PUBLISHED"] } },
     orderBy: { createdAt: "desc" },
@@ -57,6 +62,21 @@ export default async function NotesPage() {
   return (
     <main className="min-h-screen" style={{ backgroundColor: "#FAF8F3" }}>
       <div className="mx-auto max-w-2xl px-4 py-8">
+        {subscribed === "1" && (
+          <div className="mb-6 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
+            You&apos;re subscribed to Neighbours Notes! Check your inbox for the first edition.
+          </div>
+        )}
+        {unsubscribed === "1" && (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            You&apos;ve been unsubscribed from Neighbours Notes.
+          </div>
+        )}
+        {unsubscribed === "already" && (
+          <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            You&apos;re already unsubscribed from Neighbours Notes.
+          </div>
+        )}
         <h1
           className="mb-1 text-3xl font-bold"
           style={{ fontFamily: "var(--font-fraunces)", color: "#0F766E" }}

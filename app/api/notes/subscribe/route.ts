@@ -1,71 +1,104 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendNotesConfirmation } from "@/lib/email";
 import { z } from "zod";
+import crypto from "crypto";
+
+// ─── In-memory rate limiter (max 3 per IP per 10 min) ────────────────────────
+
+type RateEntry = { count: number; windowStart: number };
+const rateMap = new Map<string, RateEntry>();
+const RATE_LIMIT = 3;
+const RATE_WINDOW_MS = 10 * 60 * 1000;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateMap.get(ip);
+  if (!entry || now - entry.windowStart > RATE_WINDOW_MS) {
+    rateMap.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT) return false;
+  entry.count += 1;
+  return true;
+}
+
+// ─── Schema ───────────────────────────────────────────────────────────────────
 
 const bodySchema = z.object({
-  email: z.string().email().optional(),
+  email: z.string().email(),
+  name: z.string().optional(),
+  source: z.string().optional(),
 });
 
+// ─── POST /api/notes/subscribe ────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  const body = await req.json().catch(() => ({}));
-  const parsed = bodySchema.safeParse(body);
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
-  // Require either a logged-in user or an email in the body
-  const email =
-    parsed.success && parsed.data.email
-      ? parsed.data.email
-      : session?.user?.email;
-
-  if (!email) {
+  if (!checkRateLimit(ip)) {
     return NextResponse.json(
-      { error: "An email address is required to subscribe." },
-      { status: 400 }
+      { error: "Too many requests. Please try again later." },
+      { status: 429 }
     );
   }
 
-  const userId = session?.user?.id;
+  const body = await req.json().catch(() => ({}));
+  const parsed = bodySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid email address." }, { status: 400 });
+  }
 
-  // Check if already subscribed
-  const existing = await prisma.notesSubscriber.findFirst({
-    where: userId ? { OR: [{ userId }, { email }] } : { email },
+  const { email, name, source = "notes-page" } = parsed.data;
+  const OK = NextResponse.json({
+    ok: true,
+    message: "Check your email to confirm your subscription.",
   });
 
+  const existing = await prisma.subscriber.findUnique({ where: { email } });
+
   if (existing) {
-    return NextResponse.json({ ok: true, alreadySubscribed: true });
-  }
-
-  if (userId) {
-    await prisma.notesSubscriber.create({ data: { userId, email } });
-  } else {
-    // Anonymous subscribe — create a placeholder entry without userId
-    // TODO: link to user account after they sign up
-    await prisma.notesSubscriber.create({
-      data: {
-        userId: "anonymous",
-        email,
-        // Override userId unique constraint by using email as the key
-      },
-    }).catch(() => {
-      // If userId "anonymous" conflicts, just ignore — email uniqueness is the real guard
+    if (existing.confirmedAt) {
+      // Already confirmed — return success silently (no email enumeration)
+      return OK;
+    }
+    // Unconfirmed — regenerate token and resend
+    const confirmationToken = crypto.randomBytes(32).toString("hex");
+    await prisma.subscriber.update({
+      where: { email },
+      data: { confirmationToken, subscribedAt: new Date(), source },
     });
+    await sendNotesConfirmation({
+      to: email,
+      name: existing.name,
+      confirmationToken,
+      unsubscribeToken: existing.unsubscribeToken,
+    });
+    return OK;
   }
 
-  return NextResponse.json({ ok: true, alreadySubscribed: false });
-}
+  // New subscriber
+  const confirmationToken = crypto.randomBytes(32).toString("hex");
+  const unsubscribeToken = crypto.randomBytes(32).toString("hex");
 
-export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ subscribed: false });
-  }
+  // Pre-link to User if email matches an existing account
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
 
-  const sub = await prisma.notesSubscriber.findFirst({
-    where: {
-      OR: [{ userId: session.user.id }, { email: session.user.email! }],
+  await prisma.subscriber.create({
+    data: {
+      email,
+      name: name ?? null,
+      confirmationToken,
+      unsubscribeToken,
+      source,
+      userId: user?.id ?? null,
     },
   });
 
-  return NextResponse.json({ subscribed: !!sub });
+  await sendNotesConfirmation({ to: email, name, confirmationToken, unsubscribeToken });
+  return OK;
 }
