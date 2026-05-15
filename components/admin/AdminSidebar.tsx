@@ -5,6 +5,7 @@ const NAV = [
   { href: "/admin/deals", label: "Deals" },
   { href: "/admin/suppliers", label: "Suppliers" },
   { href: "/admin/notes", label: "Notes" },
+  { href: "/admin/submissions", label: "Submissions" },
 ];
 
 export default function AdminSidebar() {

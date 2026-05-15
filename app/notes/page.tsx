@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { NoteCategory } from "@prisma/client";
+import { NoteCategory, NoteSourceType } from "@prisma/client";
 import { Shield, DollarSign, Clock } from "lucide-react";
 import { SubscribeForm } from "./SubscribeForm";
 
@@ -27,6 +28,7 @@ const categoryStyles: Record<NoteCategory, string> = {
   Social: "bg-green-100 text-green-700",
   Weather: "bg-sky-100 text-sky-700",
   Other: "bg-gray-100 text-gray-600",
+  Business: "bg-orange-100 text-orange-700",
 };
 
 function impactColor(score: number): { dot: string; label: string } {
@@ -87,8 +89,16 @@ export default async function NotesPage({
         <p className="mb-6 text-sm" style={{ color: "#1A1A2E", opacity: 0.6 }}>
           What&apos;s happening in your neighbourhood
         </p>
-        <p className="mb-6 text-xs italic" style={{ color: "#1A1A2E", opacity: 0.45 }}>
+        <p className="mb-4 text-xs italic" style={{ color: "#1A1A2E", opacity: 0.45 }}>
           Impact dots show how much each note affects safety, cost, and time — 1 dot (low) to 5 dots (high).
+        </p>
+
+        <p className="mb-6 text-sm" style={{ color: "#1A1A2E", opacity: 0.6 }}>
+          Local business?{" "}
+          <Link href="/notes/submit" className="font-medium underline" style={{ color: "#0F766E" }}>
+            Submit an announcement
+          </Link>{" "}
+          to be featured in the feed.
         </p>
 
         <SubscribeForm />
@@ -123,6 +133,11 @@ export default async function NotesPage({
                     >
                       {note.category}
                     </span>
+                    {note.sourceType === NoteSourceType.BUSINESS_SUBMISSION && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                        Local Business
+                      </span>
+                    )}
                     <span
                       className="text-xs"
                       style={{ color: "#1A1A2E", opacity: 0.5 }}
