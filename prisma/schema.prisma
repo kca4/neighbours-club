@@ -510,6 +510,7 @@ model ProcessedNote {
   riskScore           Int
   autoPublishEligible Boolean
   status              NoteStatus   @default(DRAFT)
+  sentAt              DateTime?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
