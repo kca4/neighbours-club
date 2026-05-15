@@ -8,6 +8,10 @@ const SOURCES = [
     feedUrl: "https://www.cbc.ca/cmlink/rss-canada-ottawa",
     sourceId: "cbc-ottawa",
   },
+  {
+    feedUrl: "https://ottawacitizen.com/feed",
+    sourceId: "ottawa-citizen",
+  },
 ];
 
 export async function POST(req: NextRequest) {
@@ -24,10 +28,19 @@ export async function POST(req: NextRequest) {
   // Step 1: Ingest all feeds
   let feedsProcessed = 0;
   let itemsIngested = 0;
+  const feedErrors: { sourceId: string; error: string }[] = [];
   for (const source of SOURCES) {
-    const result = await ingestRSSFeed(source.feedUrl, source.sourceId);
-    feedsProcessed++;
-    itemsIngested += result.inserted;
+    try {
+      const result = await ingestRSSFeed(source.feedUrl, source.sourceId);
+      feedsProcessed++;
+      itemsIngested += result.inserted;
+    } catch (err) {
+      console.error(`[ingest-notes] Failed to fetch feed ${source.sourceId}:`, err);
+      feedErrors.push({
+        sourceId: source.sourceId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   // Step 2: Fetch all unprocessed raw_intel rows
@@ -76,5 +89,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ feedsProcessed, itemsIngested, itemsSummarized });
+  return NextResponse.json({ feedsProcessed, itemsIngested, itemsSummarized, feedErrors });
 }
