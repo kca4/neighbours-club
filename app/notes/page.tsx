@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { NoteCategory } from "@prisma/client";
 import { Shield, DollarSign, Clock } from "lucide-react";
+import { SubscribeForm } from "./SubscribeForm";
 
 export const metadata: Metadata = {
   title: "Neighbours Notes",
@@ -86,9 +87,11 @@ export default async function NotesPage({
         <p className="mb-6 text-sm" style={{ color: "#1A1A2E", opacity: 0.6 }}>
           What&apos;s happening in your neighbourhood
         </p>
-        <p className="mb-8 text-xs italic" style={{ color: "#1A1A2E", opacity: 0.45 }}>
+        <p className="mb-6 text-xs italic" style={{ color: "#1A1A2E", opacity: 0.45 }}>
           Impact dots show how much each note affects safety, cost, and time — 1 dot (low) to 5 dots (high).
         </p>
+
+        <SubscribeForm />
 
         {notes.length === 0 ? (
           <div
