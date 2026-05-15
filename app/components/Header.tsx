@@ -40,6 +40,12 @@ export default async function Header() {
           >
             Deals
           </Link>
+          <Link
+            href="/notes"
+            className="min-h-[44px] flex items-center px-2 sm:px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
+          >
+            Notes
+          </Link>
           {!session ? (
             <>
               <Link
