@@ -113,6 +113,7 @@ export async function POST(req: NextRequest) {
       await prisma.processedNote.create({
         data: {
           rawIntelId: item.id,
+          sourceUrl: item.sourceUrl,
           headline: result.headline,
           summary: result.summary,
           streetOrArea: result.street_or_area,

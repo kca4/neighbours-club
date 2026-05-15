@@ -539,6 +539,7 @@ model ProcessedNote {
   impactTime          Int
   riskScore           Int
   autoPublishEligible Boolean
+  sourceUrl           String?
   status              NoteStatus     @default(DRAFT)
   sentAt              DateTime?
   createdAt           DateTime       @default(now())

@@ -191,6 +191,20 @@ export default async function NotesPage({
                     );
                   })}
                 </div>
+
+                {note.sourceUrl && (
+                  <div className="mt-3 border-t border-gray-100 pt-3">
+                    <a
+                      href={note.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium"
+                      style={{ color: "#0F766E" }}
+                    >
+                      Read more →
+                    </a>
+                  </div>
+                )}
               </article>
             ))}
           </div>

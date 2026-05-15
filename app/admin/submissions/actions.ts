@@ -22,6 +22,7 @@ export async function approveSubmission(id: string) {
         category: "Business",
         sourceType: "BUSINESS_SUBMISSION",
         streetOrArea: submission.address,
+        sourceUrl: submission.websiteUrl ?? null,
         riskScore: 5,
         autoPublishEligible: false,
         impactSafety: 0,
