@@ -12,7 +12,7 @@ type OnboardingStep = typeof VALID_STEPS[number];
 //     update: { currentStep: step, data: { ...existing.data, ...body } },
 //   });
 
-const bodySchema = z.record(z.unknown());
+const bodySchema = z.record(z.string(), z.unknown());
 
 export async function POST(
   req: NextRequest,
