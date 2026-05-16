@@ -132,7 +132,6 @@ CREATE TABLE IF NOT EXISTS "DeliveryOrder" (
   CONSTRAINT "DeliveryOrder_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id"),
   CONSTRAINT "DeliveryOrder_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "User"("id")
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "DeliveryOrder_stripePaymentIntentId_key" ON "DeliveryOrder"("stripePaymentIntentId") WHERE "stripePaymentIntentId" IS NOT NULL;
 CREATE INDEX IF NOT EXISTS "DeliveryOrder_userId_idx" ON "DeliveryOrder"("userId");
 CREATE INDEX IF NOT EXISTS "DeliveryOrder_restaurantId_status_idx" ON "DeliveryOrder"("restaurantId", "status");
 CREATE INDEX IF NOT EXISTS "DeliveryOrder_driverId_status_idx" ON "DeliveryOrder"("driverId", "status");
