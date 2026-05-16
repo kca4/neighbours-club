@@ -10,7 +10,7 @@ This file is read by Claude Code at the start of every session. It contains perm
 
 - **Group buy** (Steps 1–7 complete, verified) — members pool orders for tiered-discount pricing with pickup
 - **Delivery** (scaffolded, not yet implemented) — food/goods delivery with restaurant partners and driver app
-- **Neighbours Notes** (scaffolded) — editorial neighbourhood feed
+- **Neighbours Notes** (intelligence pipeline built) — editorial neighbourhood feed with automated ingest, Gemini summarization, and subscriber delivery
 - More verticals planned
 
 The verticals share one codebase, one database, one auth system. They are separated by folder structure (e.g., `/app/deals/` for group buy, `/app/driver/` for delivery driver, `/app/notes/` for notes).
@@ -29,6 +29,7 @@ The verticals share one codebase, one database, one auth system. They are separa
 - Vercel Cron for scheduled jobs
 - npm as package manager
 - Stripe CLI for local webhook forwarding
+- Google Gemini 2.5 Flash for Notes summarization, risk scoring, and category tagging
 
 Route protection lives in `proxy.ts` (the Next.js 16 convention), not `middleware.ts`.
 
@@ -68,6 +69,15 @@ Enums:
 
 ---
 
+## Neighbours Notes data models
+
+- **RawIntel**: `id, source, externalId (unique per source), title, url, publishedAt, rawContent, fetchedAt`
+- **ProcessedNote**: `id, rawIntelId?, title, summary, category, impactScore, status (PENDING/APPROVED/REJECTED), sourceUrl?, isBusinessSubmission, createdAt`
+- **Subscriber**: `id, email (unique), confirmedAt?, token (unique), createdAt`
+- **BusinessSubmission**: `id, businessName, contactEmail, noteTitle, noteBody, status (PENDING/APPROVED/REJECTED), createdAt`
+
+---
+
 ## Critical architectural invariants
 
 These rules must NEVER be violated without explicit discussion:
@@ -100,6 +110,11 @@ Each step is a clean git commit:
 - `fed0910` — Step 6: Deal closure automation, payment capture, pickup marking, Vercel Cron, recovery flow
 - `0841a8c` — Step 7: Email (Resend), password reset, FAQ, legal pages, mobile polish, validation fixes, tagline update
 - `a4180de` — Delivery vertical: schema (Neighbourhood, Restaurant, DeliveryOrder, Driver models), route scaffolding, UI screens, notes architecture
+- `68a58b9`–`43ba822` — Notes intelligence: Gemini summarizer, RSS ingest (CBC Ottawa, Ottawa Citizen), admin review page
+- `9d9e163`–`f94f33a` — Notes public feed, subscriber system (double opt-in, CASL), urgent email alerts
+- `5026f66`–`aa98b81` — Daily digest cron (7am ET), Open Ottawa road events + dev applications sources
+- `2e332fe`–`1e495e7` — Business submission form + admin review, Local Business badge, Read more links
+- `a55f551` — Fix: migration checksum mismatch on DeliveryOrder index
 
 Steps 2 and 3 were folded into earlier commits.
 
@@ -125,8 +140,14 @@ The codebase contains:
 
 **Treat delivery as a starting point, not a finished product. Real DB queries, auth checks, and integrations all need to be wired up before any flow works.**
 
-### Neighbours Notes — scaffolded, NOT implemented
-Same status as delivery — schema and UI exist, routes return mock data.
+### Neighbours Notes — intelligence pipeline built
+- **Data sources**: CBC Ottawa RSS, Ottawa Citizen RSS, Open Ottawa road events API, Open Ottawa dev applications API
+- **Pipeline**: Hourly ingest cron → Gemini 2.5 Flash summarization with risk scoring + category tagging → admin review queue
+- **Admin**: `/admin/notes` review page — approve/reject with risk color coding
+- **Public feed**: `/notes` with severity indicators and "Read more" source links
+- **Subscriber system**: double opt-in, CASL-compliant, rate-limited; daily digest at 7am ET; urgent alerts for high-impact Safety/Weather notes
+- **Business submissions**: `/notes/submit` form → admin review → "Local Business" badge on approved notes
+- **Key files**: `lib/notes-intelligence.ts` (Gemini summarizer), `lib/notes-ingest.ts` (pipeline orchestration)
 
 ---
 
@@ -150,6 +171,8 @@ When working on this project, follow these conventions:
 
 8. **No new external services without discussion.** Adding a new package or service (Cloudinary, Twilio, Mapbox, etc.) is a deliberate decision, not a default.
 
+9. **After fixing migration issues, always verify with `npx prisma migrate status`** before committing.
+
 ---
 
 ## What NOT to do
@@ -163,6 +186,7 @@ When working on this project, follow these conventions:
 - Do not break the role-based access control invariants
 - Do not modify shared infrastructure (Header, Footer, layout, auth config, Stripe webhook, /api/me) without checking what else depends on it
 - Do not jump ahead to multiple steps in one prompt — work in defined increments and stop at the boundary
+- Do not modify the Notes intelligence pipeline (`lib/notes-intelligence.ts`, `lib/notes-ingest.ts`) without testing with real Kanata inputs — prompt changes affect all four data sources simultaneously
 
 ---
 
@@ -185,6 +209,8 @@ Required `.env` variables:
 - `EMAIL_FROM` (for testing: `Neighbours Club <onboarding@resend.dev>`; production: verified domain)
 - `CRON_SECRET`
 - `NEXT_PUBLIC_APP_URL`
+- `GEMINI_API_KEY` (Google AI Studio key for Notes summarization)
+- `NEIGHBOURS_CLUB_ADDRESS` (used in CASL-compliant subscriber confirmation emails)
 
 Stripe test cards in use:
 - `4242 4242 4242 4242` — universal success
