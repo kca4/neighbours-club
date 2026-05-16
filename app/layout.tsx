@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
-import { DM_Sans } from "next/font/google";
+import { Fraunces, Inter_Tight } from "next/font/google";
 import "./globals.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 
-const dmSans = DM_Sans({
+const fraunces = Fraunces({
   subsets: ["latin"],
-  variable: "--font-dm-sans",
+  variable: "--font-fraunces",
+  display: "swap",
+});
+
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  variable: "--font-inter-tight",
   display: "swap",
 });
 
@@ -16,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s | Neighbours Club",
   },
   description:
-    "Hyperlocal group buys for Kanata, Ottawa. Join neighbours to unlock better prices on everyday goods.",
+    "Kanata's local intelligence and group buying platform. Know what's happening. Save together.",
 };
 
 export default function RootLayout({
@@ -25,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} h-full`}>
+    <html lang="en" className={`${fraunces.variable} ${interTight.variable} h-full`}>
       <body className="flex min-h-full flex-col antialiased" suppressHydrationWarning>
         <Header />
         <div className="flex flex-1 flex-col">{children}</div>
