@@ -71,8 +71,18 @@ export default async function DealsPage() {
               <li key={deal.id}>
                 <Link
                   href={`/deals/${deal.slug}`}
-                  className="group flex h-full flex-col rounded-2xl border border-foreground/10 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+                  className="group flex h-full flex-col rounded-2xl border border-foreground/10 bg-white shadow-sm transition-shadow hover:shadow-md overflow-hidden"
                 >
+                  {deal.imageUrl && (
+                    <div className="h-40 w-full overflow-hidden">
+                      <img
+                        src={deal.imageUrl}
+                        alt={deal.title}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                  )}
+                  <div className="flex flex-col flex-1 p-6">
                   <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary/70">
                     {deal.supplier.name}
                   </div>
@@ -128,6 +138,7 @@ export default async function DealsPage() {
                         up to {deal.maxQuantityPerMember} per member
                       </div>
                     </div>
+                  </div>
                   </div>
                 </Link>
               </li>

@@ -19,6 +19,7 @@ export default async function RestaurantsPage() {
       cuisine: true,
       address: true,
       description: true,
+      heroImageUrl: true,
       rating: true,
       reviewCount: true,
       estimatedMinMin: true,
@@ -49,8 +50,18 @@ export default async function RestaurantsPage() {
             <li key={restaurant.id}>
               <Link
                 href={`/restaurants/${restaurant.slug}`}
-                className="group flex h-full flex-col rounded-2xl border border-foreground/10 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+                className="group flex h-full flex-col rounded-2xl border border-foreground/10 bg-white shadow-sm transition-shadow hover:shadow-md overflow-hidden"
               >
+                {restaurant.heroImageUrl && (
+                  <div className="h-40 w-full overflow-hidden">
+                    <img
+                      src={restaurant.heroImageUrl}
+                      alt={restaurant.name}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                )}
+                <div className="flex flex-col flex-1 p-6">
                 <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary/70">
                   {restaurant.cuisine}
                 </div>
@@ -81,6 +92,7 @@ export default async function RestaurantsPage() {
                       {restaurant.estimatedMinMin}–{restaurant.estimatedMinMax} min
                     </div>
                   </div>
+                </div>
                 </div>
               </Link>
             </li>
