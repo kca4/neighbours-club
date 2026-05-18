@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export const metadata: Metadata = {
+  title: "Neighbours Club — Kanata's Local Intelligence & Group Buying",
+  description:
+    "Know what's happening in Kanata. Save on everyday essentials by pooling orders with your neighbours. Free to join.",
+};
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { NoteCategory } from "@prisma/client";
