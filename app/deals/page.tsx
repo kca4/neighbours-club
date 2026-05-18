@@ -4,7 +4,7 @@ import Link from "next/link";
 import { DealStatus } from "@prisma/client";
 
 export const metadata: Metadata = {
-  title: "Browse Deals — Neighbours Club",
+  title: "Browse Deals",
   description:
     "Pool your buying power with neighbours and unlock lower prices on food, household goods, and more.",
 };

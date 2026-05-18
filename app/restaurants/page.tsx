@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Restaurants — Neighbours Club",
+  title: "Restaurants",
   description:
     "Order from local Kanata restaurants and get food delivered to your door.",
 };
