@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { NoteCategory } from "@prisma/client";
 import { SubscribeForm } from "@/app/components/SubscribeForm";
 
@@ -15,18 +16,28 @@ const categoryStyles: Record<NoteCategory, string> = {
 };
 
 export default async function HomePage() {
-  const recentNotes = await prisma.processedNote.findMany({
-    where: { status: { in: ["APPROVED", "PUBLISHED"] } },
-    orderBy: { createdAt: "desc" },
-    take: 3,
-    select: {
-      id: true,
-      headline: true,
-      category: true,
-      streetOrArea: true,
-      summary: true,
-    },
-  });
+  const session = await auth();
+  const [recentNotes, confirmedSubscriber] = await Promise.all([
+    prisma.processedNote.findMany({
+      where: { status: { in: ["APPROVED", "PUBLISHED"] } },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      select: {
+        id: true,
+        headline: true,
+        category: true,
+        streetOrArea: true,
+        summary: true,
+      },
+    }),
+    session?.user?.email
+      ? prisma.subscriber.findFirst({
+          where: { email: session.user.email, confirmedAt: { not: null } },
+          select: { id: true },
+        })
+      : null,
+  ]);
+  const isSubscribed = !!confirmedSubscriber;
 
   return (
     <main>
@@ -63,12 +74,20 @@ export default async function HomePage() {
             Kanata&apos;s local intelligence and group buying platform.{" "}
             Know what&apos;s happening. Save together.
           </p>
-          <div className="mx-auto max-w-md">
-            <SubscribeForm source="homepage" />
-          </div>
-          <p className="text-sm" style={{ color: "#1A1A2E", opacity: 0.45 }}>
-            Free. One email to confirm. Unsubscribe anytime.
-          </p>
+          {isSubscribed ? (
+            <p className="text-sm" style={{ color: "#0F766E" }}>
+              You&apos;re subscribed to Neighbours Notes.
+            </p>
+          ) : (
+            <>
+              <div className="mx-auto max-w-md">
+                <SubscribeForm source="homepage" />
+              </div>
+              <p className="text-sm" style={{ color: "#1A1A2E", opacity: 0.45 }}>
+                Free. One email to confirm. Unsubscribe anytime.
+              </p>
+            </>
+          )}
         </div>
       </section>
 

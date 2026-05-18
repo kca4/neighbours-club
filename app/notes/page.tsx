@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { NoteCategory, NoteSourceType } from "@prisma/client";
 import { Shield, DollarSign, Clock } from "lucide-react";
 import { SubscribeForm } from "./SubscribeForm";
@@ -57,10 +58,20 @@ export default async function NotesPage({
   searchParams: Promise<{ subscribed?: string; unsubscribed?: string }>;
 }) {
   const { subscribed, unsubscribed } = await searchParams;
-  const notes = await prisma.processedNote.findMany({
-    where: { status: { in: ["APPROVED", "PUBLISHED"] } },
-    orderBy: { createdAt: "desc" },
-  });
+  const session = await auth();
+  const [notes, confirmedSubscriber] = await Promise.all([
+    prisma.processedNote.findMany({
+      where: { status: { in: ["APPROVED", "PUBLISHED"] } },
+      orderBy: { createdAt: "desc" },
+    }),
+    session?.user?.email
+      ? prisma.subscriber.findFirst({
+          where: { email: session.user.email, confirmedAt: { not: null } },
+          select: { id: true },
+        })
+      : null,
+  ]);
+  const isSubscribed = !!confirmedSubscriber;
 
   return (
     <main className="min-h-screen" style={{ backgroundColor: "#FAF8F3" }}>
@@ -101,7 +112,7 @@ export default async function NotesPage({
           to be featured in the feed.
         </p>
 
-        <SubscribeForm />
+        {!isSubscribed && <SubscribeForm />}
 
         {notes.length === 0 ? (
           <div
