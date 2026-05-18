@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { auth } from "@/lib/auth";
+import SignOutButton from "./SignOutButton";
 
-export default function Footer() {
+export default async function Footer() {
   const year = new Date().getFullYear();
+  const session = await auth();
 
   return (
     <footer className="mt-auto border-t border-foreground/8 bg-background">
@@ -32,14 +35,29 @@ export default function Footer() {
             </li>
             <li>
               <Link href="/notes/submit" className="hover:text-foreground transition-colors min-h-[44px] flex items-center">
-                Submit Business
+                Submit an Announcement
               </Link>
             </li>
-            <li>
-              <Link href="/signin" className="hover:text-foreground transition-colors min-h-[44px] flex items-center">
-                Sign In
-              </Link>
-            </li>
+            {session ? (
+              <li>
+                <SignOutButton
+                  className="text-sm font-medium text-foreground/50 hover:text-foreground transition-colors min-h-[44px] flex items-center"
+                />
+              </li>
+            ) : (
+              <>
+                <li>
+                  <Link href="/signin" className="hover:text-foreground transition-colors min-h-[44px] flex items-center">
+                    Sign In
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/signup" className="hover:text-foreground transition-colors min-h-[44px] flex items-center">
+                    Sign Up
+                  </Link>
+                </li>
+              </>
+            )}
             <li>
               <Link href="/faq" className="hover:text-foreground transition-colors min-h-[44px] flex items-center">
                 FAQ

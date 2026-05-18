@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 function relativeTime(date: Date): string {
   const diff = Date.now() - date.getTime();
   const mins = Math.floor(diff / 60_000);
+  if (mins <= 0) return "just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
@@ -100,9 +101,11 @@ export default async function NotesPage({
         <p className="mb-6 text-sm" style={{ color: "#1A1A2E", opacity: 0.6 }}>
           What&apos;s happening in your neighbourhood
         </p>
-        <p className="mb-4 text-xs italic" style={{ color: "#1A1A2E", opacity: 0.45 }}>
-          Impact dots show how much each note affects safety, cost, and time — 1 dot (low) to 5 dots (high).
-        </p>
+        {notes.length > 0 && (
+          <p className="mb-4 text-xs italic" style={{ color: "#1A1A2E", opacity: 0.45 }}>
+            Impact dots show how much each note affects safety, cost, and time — 1 dot (low) to 5 dots (high).
+          </p>
+        )}
 
         <p className="mb-6 text-sm" style={{ color: "#1A1A2E", opacity: 0.6 }}>
           Local business?{" "}

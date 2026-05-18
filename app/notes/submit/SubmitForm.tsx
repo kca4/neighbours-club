@@ -58,7 +58,7 @@ export function SubmitForm() {
           className="mb-1 text-3xl font-bold"
           style={{ fontFamily: "var(--font-fraunces)", color: "#0F766E" }}
         >
-          Submit Your Business
+          Submit an Announcement
         </h1>
         <p className="mb-8 text-sm" style={{ color: "#1A1A2E", opacity: 0.6 }}>
           Share an announcement, offer, or update with the Kanata neighbourhood. We review every
