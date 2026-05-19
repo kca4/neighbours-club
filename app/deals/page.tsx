@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { DealStatus } from "@prisma/client";
+import { DealStatus, OrderStatus } from "@prisma/client";
+
+const CONFIRMED_STATUSES: OrderStatus[] = [
+  OrderStatus.AUTHORIZED,
+  OrderStatus.CAPTURED,
+  OrderStatus.PICKED_UP,
+];
 
 export const metadata: Metadata = {
   title: "Browse Deals",
@@ -27,7 +33,11 @@ export default async function DealsPage() {
     include: {
       supplier: true,
       tiers: { orderBy: { tierOrder: "asc" } },
-      _count: { select: { orders: true } },
+      _count: {
+        select: {
+          orders: { where: { status: { in: CONFIRMED_STATUSES } } },
+        },
+      },
     },
     orderBy: { closesAt: "asc" },
   });
