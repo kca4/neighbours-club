@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { generateBusinessSlug } from "@/lib/slugify";
+import { generateBusinessSlug, generateNoteSlug } from "@/lib/slugify";
 import { revalidatePath } from "next/cache";
 
 export async function approveSubmission(id: string) {
@@ -36,6 +36,8 @@ export async function approveSubmission(id: string) {
         select: { id: true, slug: true },
       });
 
+  const noteSlug = await generateNoteSlug(submission.businessName);
+
   await prisma.$transaction([
     prisma.businessSubmission.update({
       where: { id },
@@ -58,6 +60,7 @@ export async function approveSubmission(id: string) {
         impactSafety: 0,
         impactCost: 0,
         impactTime: 0,
+        slug: noteSlug,
         status: "DRAFT",
         businessProfileId: profile.id,
       },

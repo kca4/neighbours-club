@@ -564,6 +564,7 @@ model ProcessedNote {
   riskScore           Int
   autoPublishEligible Boolean
   sourceUrl           String?
+  slug                String?          @unique
   status              NoteStatus       @default(DRAFT)
   sentAt              DateTime?
   createdAt           DateTime         @default(now())

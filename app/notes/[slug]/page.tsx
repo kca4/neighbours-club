@@ -1,123 +1,222 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import IssueDetailView from "./IssueDetailView";
+import { prisma } from "@/lib/prisma";
+import { NoteCategory, NoteSourceType } from "@prisma/client";
+import { Shield, DollarSign, Clock } from "lucide-react";
 
-// TODO: replace static content map with real CMS (e.g. Contentful, Sanity, or DB)
-const ISSUES: Record<string, {
-  number: number;
-  headline: string;
-  subhead: string;
-  publishedAt: string;
-  readMinutes: number;
-  byline: string;
-  toc: { n: string; title: string }[];
-  stories: {
-    n: string;
-    title: string;
-    body: string[];
-    quote?: { text: string; attribution: string };
-    card?: { initial: string; name: string; sub: string; cta: string; gradient: [string, string] };
-    bullets?: { n: string; text: string }[];
-    dropCap?: boolean;
-  }[];
-  mentionedPartners: string;
-  pastIssues: { n: string; title: string; date: string; slug: string }[];
-}> = {
-  "issue-18": {
-    number: 18,
-    headline: "Three new patios, one farewell, and the return of butter chicken poutine.",
-    subhead: "A roundup of what opened, what's leaving, and what's cooking on Hazeldean this week.",
-    publishedAt: "Mon May 4",
-    readMinutes: 4,
-    byline: "The Driver-in-Chief",
-    toc: [
-      { n: "01", title: "Patio season is open" },
-      { n: "02", title: "Saying goodbye to Café Mio" },
-      { n: "03", title: "Butter chicken poutine, again" },
-      { n: "04", title: "Three things on Hazeldean" },
-    ],
-    stories: [
-      {
-        n: "01",
-        title: "Patio season is officially open",
-        dropCap: true,
-        body: [
-          "The first warm Saturday of the year did what it always does in Kanata — it sent everyone outside at once. Three patios on Hazeldean opened this weekend, and by 6 PM none of them had a free table. If you missed the rush, this week is your chance.",
-          "The Grand Pizzeria stretched theirs all the way to the curb. Local Public Eatery added heaters, which feels optimistic for May but smart for May evenings. And around the corner, the new place that took over the old yoga studio finally soft-opened.",
-        ],
-        card: {
-          initial: "G",
-          name: "The Grand Pizzeria",
-          sub: "Wood-fired · Hazeldean",
-          cta: "Mentioned in this story",
-          gradient: ["#C96B5B", "#8B3E30"],
-        },
-      },
-      {
-        n: "02",
-        title: "Saying goodbye to Café Mio",
-        body: [
-          "After eleven years on Castlefrank, Café Mio is closing at the end of the month. Co-owner Daniela posted a handwritten note on the door — the kind of note you photograph and send to a friend.",
-          "The last day is May 31. If you've never been, go. If you've been a hundred times, go anyway.",
-        ],
-        quote: {
-          text: "Eleven years of espresso, eleven years of conversations. We're tired in the best way.",
-          attribution: "— From the note on the door",
-        },
-      },
-      {
-        n: "03",
-        title: "Butter chicken poutine, again",
-        body: [
-          "Two years ago, Kanata had a brief, intense love affair with butter chicken poutine. Then it disappeared. This week, it's back — quietly added to the menu at one of our partners, without fanfare, on a Wednesday.",
-          "We tested it. It is exactly as good as you remember.",
-        ],
-        card: {
-          initial: "S",
-          name: "Saffron Indian Kitchen",
-          sub: "Indian · Centrum",
-          cta: "Order it now",
-          gradient: ["#B8860B", "#8B6508"],
-        },
-      },
-      {
-        n: "04",
-        title: "Three things on Hazeldean",
-        body: [],
-        bullets: [
-          { n: "i.", text: "The bakery on the corner of Hazeldean and Castlefrank now opens at 6 AM. Confirmed by your neighbourhood driver at 6:04 AM, with photo evidence." },
-          { n: "ii.", text: "Glen Cairn farmers' market starts Sunday May 11. First-week vendors include three new ones we haven't seen before." },
-          { n: "iii.", text: "Construction on Eagleson is closing one lane until Friday. If you order delivery between 5 and 7 PM, please be patient with your driver." },
-        ],
-      },
-    ],
-    mentionedPartners: "Order from Saffron, Grand & 2 more",
-    pastIssues: [
-      { n: "17", title: "Why Tuesday is the best night to order in", date: "Apr 27", slug: "issue-17" },
-      { n: "16", title: "A new bakery, a goodbye to the old one", date: "Apr 20", slug: "issue-16" },
-      { n: "15", title: "Spring menus, ranked by your neighbours", date: "Apr 13", slug: "issue-15" },
-    ],
-  },
+const categoryStyles: Record<NoteCategory, string> = {
+  Safety: "bg-red-100 text-red-700",
+  Transit: "bg-blue-100 text-blue-700",
+  DevApp: "bg-purple-100 text-purple-700",
+  Cost: "bg-amber-100 text-amber-700",
+  Social: "bg-green-100 text-green-700",
+  Weather: "bg-sky-100 text-sky-700",
+  Other: "bg-gray-100 text-gray-600",
+  Business: "bg-orange-100 text-orange-700",
 };
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+function impactColor(score: number): { dot: string; label: string } {
+  if (score <= 1) return { dot: "bg-green-500", label: "text-green-700" };
+  if (score <= 3) return { dot: "bg-amber-500", label: "text-amber-700" };
+  return { dot: "bg-red-500", label: "text-red-700" };
+}
+
+function ImpactDots({ score, max = 5 }: { score: number; max?: number }) {
+  const { dot } = impactColor(score);
+  return (
+    <span className="flex gap-0.5">
+      {Array.from({ length: max }).map((_, i) => (
+        <span
+          key={i}
+          className={`inline-block h-2 w-2 rounded-full ${i < score ? dot : "bg-gray-200"}`}
+        />
+      ))}
+    </span>
+  );
+}
+
+function formatDate(date: Date): string {
+  return date.toLocaleDateString("en-CA", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const { slug } = await params;
-  const issue = ISSUES[slug];
-  if (!issue) return { title: "Not Found" };
+  const note = await prisma.processedNote.findUnique({
+    where: { slug },
+    select: { headline: true, summary: true },
+  });
+  if (!note) return { title: "Note not found" };
   return {
-    title: `Issue ${issue.number} — Neighbours Notes`,
-    description: issue.subhead,
+    title: note.headline,
+    description: note.summary.slice(0, 155),
   };
 }
 
-export default async function NotesIssueDetailPage({
+export default async function NoteDetailPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const issue = ISSUES[slug];
-  if (!issue) notFound();
+  const note = await prisma.processedNote.findUnique({
+    where: { slug },
+    include: {
+      businessProfile: {
+        select: {
+          slug: true,
+          businessName: true,
+          address: true,
+          phone: true,
+          websiteUrl: true,
+          isPublic: true,
+        },
+      },
+    },
+  });
 
-  return <IssueDetailView issue={issue} />;
+  if (!note || !["APPROVED", "PUBLISHED"].includes(note.status)) {
+    notFound();
+  }
+
+  return (
+    <main className="min-h-screen" style={{ backgroundColor: "#FAF8F3" }}>
+      <div className="mx-auto max-w-2xl px-4 py-8">
+        {/* Back link */}
+        <Link
+          href="/notes"
+          className="mb-6 inline-flex items-center gap-1 text-sm font-medium"
+          style={{ color: "#0F766E" }}
+        >
+          ← Back to Notes
+        </Link>
+
+        <article className="mt-6">
+          {/* Top row: category, source type, location, date */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${categoryStyles[note.category]}`}
+            >
+              {note.category}
+            </span>
+            {note.sourceType === NoteSourceType.BUSINESS_SUBMISSION && (
+              note.businessProfile?.isPublic ? (
+                <Link
+                  href={`/business/${note.businessProfile.slug}`}
+                  className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200 transition-colors"
+                >
+                  Local Business
+                </Link>
+              ) : (
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                  Local Business
+                </span>
+              )
+            )}
+            <span className="text-sm" style={{ color: "#1A1A2E", opacity: 0.55 }}>
+              {note.streetOrArea}
+            </span>
+            <span className="text-sm" style={{ color: "#1A1A2E", opacity: 0.4 }}>
+              · {formatDate(note.createdAt)}
+            </span>
+          </div>
+
+          {/* Headline */}
+          <h1
+            className="mb-5 text-3xl font-bold leading-tight sm:text-4xl"
+            style={{ fontFamily: "var(--font-fraunces)", color: "#1A1A2E" }}
+          >
+            {note.headline}
+          </h1>
+
+          {/* Impact scores */}
+          <div className="mb-6 flex flex-wrap gap-x-6 gap-y-2 rounded-xl border border-gray-100 bg-white px-4 py-3">
+            {(
+              [
+                { icon: Shield, label: "Safety", score: note.impactSafety },
+                { icon: DollarSign, label: "Cost", score: note.impactCost },
+                { icon: Clock, label: "Time", score: note.impactTime },
+              ] as const
+            ).map(({ icon: Icon, label, score }) => {
+              const { label: labelColor } = impactColor(score);
+              return (
+                <span key={label} className={`flex items-center gap-1.5 text-sm ${labelColor}`}>
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="font-medium">{label}</span>
+                  <ImpactDots score={score} />
+                </span>
+              );
+            })}
+          </div>
+
+          {/* Summary */}
+          <p
+            className="mb-6 text-base leading-relaxed"
+            style={{ color: "#1A1A2E", opacity: 0.8 }}
+          >
+            {note.summary}
+          </p>
+
+          {/* Source link */}
+          {note.sourceUrl && (
+            <div className="mb-8">
+              <a
+                href={note.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-semibold underline underline-offset-2"
+                style={{ color: "#0F766E" }}
+              >
+                View original source →
+              </a>
+            </div>
+          )}
+
+          {/* Business info */}
+          {note.businessProfile && (
+            <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                Local Business
+              </p>
+              <p
+                className="mb-2 text-lg font-bold"
+                style={{ fontFamily: "var(--font-fraunces)", color: "#1A1A2E" }}
+              >
+                {note.businessProfile.businessName}
+              </p>
+              {note.businessProfile.address && (
+                <p className="mb-1 text-sm" style={{ color: "#1A1A2E", opacity: 0.7 }}>
+                  {note.businessProfile.address}
+                </p>
+              )}
+              {note.businessProfile.phone && (
+                <p className="mb-1 text-sm" style={{ color: "#1A1A2E", opacity: 0.7 }}>
+                  {note.businessProfile.phone}
+                </p>
+              )}
+              {note.businessProfile.websiteUrl && (
+                <a
+                  href={note.businessProfile.websiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-block text-sm font-medium underline underline-offset-2"
+                  style={{ color: "#0F766E" }}
+                >
+                  {note.businessProfile.websiteUrl}
+                </a>
+              )}
+            </div>
+          )}
+        </article>
+      </div>
+    </main>
+  );
 }

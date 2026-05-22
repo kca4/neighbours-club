@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ingestRSSFeed, ingestOpenOttawa } from "@/lib/notes-ingest";
 import { summarizeNewsItem } from "@/lib/notes-intelligence";
+import { generateNoteSlug } from "@/lib/slugify";
 
 const SOURCES = [
   {
@@ -110,6 +111,7 @@ export async function POST(req: NextRequest) {
     try {
       const result = await summarizeNewsItem(item.body, item.sourceUrl);
 
+      const noteSlug = await generateNoteSlug(result.headline);
       await prisma.processedNote.create({
         data: {
           rawIntelId: item.id,
@@ -123,6 +125,7 @@ export async function POST(req: NextRequest) {
           impactTime: result.impact.time,
           riskScore: result.risk_score,
           autoPublishEligible: result.auto_publish_eligible,
+          slug: noteSlug,
           status: "DRAFT",
         },
       });

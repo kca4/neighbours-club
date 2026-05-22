@@ -138,10 +138,19 @@ export default async function NotesPage({
             {notes.map((note) => (
               <article
                 key={note.id}
-                className="rounded-xl bg-white p-4 shadow-sm"
+                className="relative rounded-xl bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
               >
+                {/* Full-card overlay link (renders beneath interactive children) */}
+                {note.slug && (
+                  <Link
+                    href={`/notes/${note.slug}`}
+                    className="absolute inset-0 rounded-xl"
+                    aria-label={note.headline}
+                  />
+                )}
+
                 {/* Top row */}
-                <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="relative z-10 mb-2 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-semibold ${categoryStyles[note.category]}`}
@@ -152,7 +161,7 @@ export default async function NotesPage({
                       note.businessProfile?.isPublic ? (
                         <Link
                           href={`/business/${note.businessProfile.slug}`}
-                          className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200 transition-colors"
+                          className="relative z-10 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200 transition-colors"
                         >
                           Local Business
                         </Link>
@@ -215,20 +224,6 @@ export default async function NotesPage({
                     );
                   })}
                 </div>
-
-                {note.sourceUrl && (
-                  <div className="mt-3 border-t border-gray-100 pt-3">
-                    <a
-                      href={note.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-medium"
-                      style={{ color: "#0F766E" }}
-                    >
-                      Read more →
-                    </a>
-                  </div>
-                )}
               </article>
             ))}
           </div>

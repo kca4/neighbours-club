@@ -35,6 +35,7 @@ export default async function HomePage() {
         category: true,
         streetOrArea: true,
         summary: true,
+        slug: true,
       },
     }),
     session?.user?.email
@@ -189,9 +190,10 @@ export default async function HomePage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-3">
               {recentNotes.map((note, i) => (
-                <article
+                <Link
                   key={note.id}
-                  className="flex flex-col rounded-2xl border border-gray-100 p-5"
+                  href={note.slug ? `/notes/${note.slug}` : "/notes"}
+                  className="flex flex-col rounded-2xl border border-gray-100 p-5 transition-shadow hover:shadow-md"
                   style={{
                     backgroundColor: "#FAF8F3",
                     animation: `fadeInUp 0.6s ease ${0.1 + i * 0.1}s both`,
@@ -221,7 +223,7 @@ export default async function HomePage() {
                   >
                     {note.summary}
                   </p>
-                </article>
+                </Link>
               ))}
             </div>
           )}
