@@ -64,6 +64,7 @@ export default async function NotesPage({
     prisma.processedNote.findMany({
       where: { status: { in: ["APPROVED", "PUBLISHED"] } },
       orderBy: { createdAt: "desc" },
+      include: { businessProfile: { select: { slug: true, isPublic: true } } },
     }),
     session?.user?.email
       ? prisma.subscriber.findFirst({
@@ -148,9 +149,18 @@ export default async function NotesPage({
                       {note.category}
                     </span>
                     {note.sourceType === NoteSourceType.BUSINESS_SUBMISSION && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                        Local Business
-                      </span>
+                      note.businessProfile?.isPublic ? (
+                        <Link
+                          href={`/business/${note.businessProfile.slug}`}
+                          className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200 transition-colors"
+                        >
+                          Local Business
+                        </Link>
+                      ) : (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          Local Business
+                        </span>
+                      )
                     )}
                     <span
                       className="text-xs"

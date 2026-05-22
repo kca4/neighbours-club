@@ -227,7 +227,7 @@ export default async function BusinessPage() {
               { text: '"Local Business" badge on your note', future: false },
               { text: "Link to your website from the note card", future: false },
               {
-                text: "Coming soon: featured placement, group buy partnerships, business profiles",
+                text: "Coming soon: featured placement, group buy partnerships",
                 future: true,
               },
             ].map((item, i) => (

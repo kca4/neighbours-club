@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { generateBusinessSlug } from "@/lib/slugify";
 import { revalidatePath } from "next/cache";
 
 export async function approveSubmission(id: string) {
@@ -10,10 +11,39 @@ export async function approveSubmission(id: string) {
 
   const submission = await prisma.businessSubmission.findUniqueOrThrow({ where: { id } });
 
+  // Upsert profile keyed by contactEmail — second approval from same email reuses existing profile
+  const existingProfile = await prisma.businessProfile.findFirst({
+    where: { contactEmail: submission.contactEmail },
+    select: { id: true, slug: true },
+  });
+
+  const slug = existingProfile?.slug ?? (await generateBusinessSlug(submission.businessName));
+
+  const profile = existingProfile
+    ? existingProfile
+    : await prisma.businessProfile.create({
+        data: {
+          slug,
+          businessName: submission.businessName,
+          contactEmail: submission.contactEmail,
+          address: submission.address,
+          websiteUrl: submission.websiteUrl ?? null,
+          phone: submission.phone ?? null,
+          description: submission.message,
+          offerDetails: submission.offerDetails ?? null,
+          isPublic: true,
+        },
+        select: { id: true, slug: true },
+      });
+
   await prisma.$transaction([
     prisma.businessSubmission.update({
       where: { id },
-      data: { status: "APPROVED", reviewedAt: new Date() },
+      data: {
+        status: "APPROVED",
+        reviewedAt: new Date(),
+        businessProfileId: profile.id,
+      },
     }),
     prisma.processedNote.create({
       data: {
@@ -29,12 +59,14 @@ export async function approveSubmission(id: string) {
         impactCost: 0,
         impactTime: 0,
         status: "DRAFT",
+        businessProfileId: profile.id,
       },
     }),
   ]);
 
   revalidatePath("/admin/submissions");
   revalidatePath("/admin/notes");
+  revalidatePath(`/business/${profile.slug}`);
 }
 
 export async function rejectSubmission(id: string) {
