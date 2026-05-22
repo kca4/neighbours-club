@@ -302,7 +302,7 @@ export default async function HomePage() {
             Get discovered by your neighbours. Submit an announcement — it&apos;s free.
           </p>
           <Link
-            href="/notes/submit"
+            href="/business"
             className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-white px-8 text-base font-semibold transition-colors hover:bg-teal-50"
             style={{ color: "#0F766E" }}
           >

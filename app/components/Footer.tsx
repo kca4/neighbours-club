@@ -38,6 +38,11 @@ export default async function Footer() {
                 Submit an Announcement
               </Link>
             </li>
+            <li>
+              <Link href="/business" className="hover:text-foreground transition-colors min-h-[44px] flex items-center">
+                For Businesses
+              </Link>
+            </li>
             {session ? (
               <li>
                 <SignOutButton
