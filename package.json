@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:delivery": "tsx prisma/seeds/delivery-seed.ts",
     "seed:restaurants": "tsx scripts/seed-restaurants.ts"
   },
   "prisma": {
