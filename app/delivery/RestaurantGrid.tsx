@@ -24,26 +24,34 @@ export interface RestaurantSummary {
 // ─── RestaurantCard ───────────────────────────────────────────────────────────
 
 function RestaurantCard({ r }: { r: RestaurantSummary }) {
+  const [heroError, setHeroError] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  const showHero = !!r.heroImageUrl && !heroError;
+  const showLogo = !!r.logoUrl && !logoError;
+
   return (
     <Link
       href={`/delivery/${r.slug}`}
-      className="group flex flex-col rounded-2xl bg-white border border-foreground/5 shadow-sm hover:shadow-md transition-all duration-200 overflow-visible"
+      className="group flex flex-col overflow-hidden rounded-2xl border border-foreground/5 bg-white shadow-sm transition-all duration-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
     >
       {/* Hero image */}
-      <div className="relative aspect-video w-full overflow-hidden rounded-t-2xl bg-foreground/5 shrink-0">
-        {r.heroImageUrl ? (
+      <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-t-2xl bg-foreground/5">
+        {showHero ? (
           <Image
-            src={r.heroImageUrl}
-            alt={r.name}
+            src={r.heroImageUrl!}
+            alt={`${r.name} restaurant`}
             fill
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="object-cover transition-transform duration-300 group-hover:scale-105"
+            onError={() => setHeroError(true)}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-primary/5">
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5">
             <span
-              className="text-5xl font-bold italic text-primary/20 select-none"
+              className="select-none text-5xl font-bold italic text-primary/25"
               style={{ fontFamily: "var(--font-fraunces)" }}
+              aria-hidden
             >
               {r.name[0]}
             </span>
@@ -52,23 +60,35 @@ function RestaurantCard({ r }: { r: RestaurantSummary }) {
 
         {/* Logo — overlaps bottom of hero */}
         {r.logoUrl && (
-          <div className="absolute bottom-0 left-4 translate-y-1/2 h-12 w-12 rounded-full border-2 border-white bg-white shadow overflow-hidden shrink-0">
-            <Image
-              src={r.logoUrl}
-              alt={`${r.name} logo`}
-              fill
-              sizes="48px"
-              className="object-cover"
-            />
+          <div className="absolute bottom-0 left-4 h-12 w-12 translate-y-1/2 overflow-hidden rounded-full border-2 border-white bg-white shadow">
+            {showLogo ? (
+              <Image
+                src={r.logoUrl}
+                alt={`${r.name} logo`}
+                fill
+                sizes="48px"
+                className="object-cover"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-primary">
+                <span
+                  className="text-base font-bold text-white"
+                  style={{ fontFamily: "var(--font-fraunces)" }}
+                >
+                  {r.name[0]}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Card body */}
       <div className="flex flex-1 flex-col px-4 pb-4 pt-8">
-        {/* Name */}
+        {/* h3 — below the page h1 "Delivery" */}
         <h3
-          className="text-lg font-bold leading-tight text-foreground group-hover:text-primary transition-colors"
+          className="text-lg font-bold leading-tight text-foreground transition-colors group-hover:text-primary"
           style={{ fontFamily: "var(--font-fraunces)" }}
         >
           {r.name}
@@ -77,15 +97,14 @@ function RestaurantCard({ r }: { r: RestaurantSummary }) {
         {/* Cuisine + rating */}
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
           <span className="text-foreground/50">{r.cuisine}</span>
-
           {r.rating !== null && (
             <>
               <span className="text-foreground/20" aria-hidden>·</span>
               <span className="flex items-center gap-1 font-semibold text-accent">
                 <Star size={12} fill="currentColor" strokeWidth={0} aria-hidden />
-                {r.rating.toFixed(1)}
+                <span>{r.rating.toFixed(1)}</span>
               </span>
-              <span className="text-foreground/35 text-xs">
+              <span className="text-xs text-foreground/35">
                 ({r.reviewCount.toLocaleString()})
               </span>
             </>
@@ -94,13 +113,13 @@ function RestaurantCard({ r }: { r: RestaurantSummary }) {
 
         {/* Description — 2-line clamp */}
         {r.description && (
-          <p className="mt-2 text-xs text-foreground/50 leading-relaxed line-clamp-2">
+          <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-foreground/50">
             {r.description}
           </p>
         )}
 
         {/* Delivery time */}
-        <div className="mt-auto pt-3 flex items-center gap-1.5 text-xs text-foreground/45">
+        <div className="mt-auto flex items-center gap-1.5 pt-3 text-xs text-foreground/45">
           <Clock size={12} strokeWidth={2} aria-hidden />
           <span>{r.estimatedMinMin}–{r.estimatedMinMax} min</span>
         </div>
@@ -119,18 +138,15 @@ export default function RestaurantGrid({
   const [search, setSearch] = useState("");
   const [activeCuisine, setActiveCuisine] = useState("All");
 
-  // Derive distinct cuisines from data (stable order: All first, then sorted)
   const cuisines = useMemo(() => {
     const unique = Array.from(new Set(restaurants.map((r) => r.cuisine))).sort();
     return ["All", ...unique];
   }, [restaurants]);
 
-  // Filter by cuisine pill, then by search query
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return restaurants.filter((r) => {
-      const cuisineMatch =
-        activeCuisine === "All" || r.cuisine === activeCuisine;
+      const cuisineMatch = activeCuisine === "All" || r.cuisine === activeCuisine;
       const searchMatch =
         !q ||
         r.name.toLowerCase().includes(q) ||
@@ -147,14 +163,14 @@ export default function RestaurantGrid({
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-8">
-      {/* Search + filters */}
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+      {/* Search + filter controls */}
       <div className="mb-6 space-y-4">
-        {/* Search bar */}
+        {/* Search input */}
         <div className="relative max-w-md">
           <Search
             size={15}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground/35 pointer-events-none"
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground/35"
             aria-hidden
           />
           <input
@@ -162,23 +178,27 @@ export default function RestaurantGrid({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or cuisine…"
-            className="w-full rounded-xl border border-foreground/10 bg-white py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-foreground/35 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+            aria-label="Search restaurants"
+            className="[&::-webkit-search-cancel-button]:appearance-none w-full rounded-xl border border-foreground/10 bg-white py-2.5 pl-10 pr-9 text-sm text-foreground placeholder:text-foreground/35 shadow-sm transition-colors focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            style={{ fontFamily: "var(--font-inter-tight)" }}
           />
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/30 hover:text-foreground/60 transition-colors"
               aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/30 transition-colors hover:text-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <X size={14} />
+              <X size={14} aria-hidden />
             </button>
           )}
         </div>
 
         {/* Cuisine filter pills */}
         <div
-          className="flex gap-2 overflow-x-auto pb-1 -mb-1"
+          className="flex gap-2 overflow-x-auto pb-1"
           style={{ scrollbarWidth: "none" }}
+          role="group"
+          aria-label="Filter by cuisine"
         >
           {cuisines.map((cuisine) => {
             const active = activeCuisine === cuisine;
@@ -186,11 +206,13 @@ export default function RestaurantGrid({
               <button
                 key={cuisine}
                 onClick={() => setActiveCuisine(cuisine)}
+                aria-pressed={active}
                 className={[
                   "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
                   active
                     ? "bg-primary text-white shadow-sm"
-                    : "bg-white border border-foreground/10 text-foreground/60 hover:border-primary/40 hover:text-primary",
+                    : "border border-foreground/10 bg-white text-foreground/60 hover:border-primary/40 hover:text-primary",
                 ].join(" ")}
               >
                 {cuisine}
@@ -200,7 +222,7 @@ export default function RestaurantGrid({
         </div>
       </div>
 
-      {/* Results count + clear */}
+      {/* Results count + clear — only when filters are active */}
       {hasFilters && (
         <div className="mb-4 flex items-center justify-between text-xs text-foreground/45">
           <span>
@@ -210,14 +232,14 @@ export default function RestaurantGrid({
           </span>
           <button
             onClick={clearFilters}
-            className="text-primary font-medium hover:underline"
+            className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             Clear filters
           </button>
         </div>
       )}
 
-      {/* Grid */}
+      {/* Grid or empty state */}
       {filtered.length > 0 ? (
         <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((r) => (
@@ -226,23 +248,37 @@ export default function RestaurantGrid({
             </li>
           ))}
         </ul>
-      ) : (
+      ) : hasFilters ? (
+        /* Filters active, nothing matched */
         <div className="flex flex-col items-center justify-center rounded-2xl border border-foreground/5 bg-white py-20 text-center">
           <p
             className="text-2xl font-bold italic text-foreground/20"
             style={{ fontFamily: "var(--font-fraunces)" }}
           >
-            Nothing here
+            No restaurants found
           </p>
           <p className="mt-2 text-sm text-foreground/40">
-            Try a different search or browse all restaurants.
+            Try a different search or browse all cuisines.
           </p>
           <button
             onClick={clearFilters}
-            className="mt-4 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white hover:bg-primary-dark transition-colors"
+            className="mt-4 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             Show all
           </button>
+        </div>
+      ) : (
+        /* No restaurants in the database yet */
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-foreground/5 bg-white py-20 text-center">
+          <p
+            className="text-2xl font-bold italic text-foreground/20"
+            style={{ fontFamily: "var(--font-fraunces)" }}
+          >
+            Coming soon
+          </p>
+          <p className="mt-2 text-sm text-foreground/40">
+            We&apos;re signing up Kanata&apos;s best restaurants. Check back soon.
+          </p>
         </div>
       )}
     </div>

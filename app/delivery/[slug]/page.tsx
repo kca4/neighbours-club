@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { OperatingHours } from "@/lib/types/delivery";
 import RestaurantHero from "./RestaurantHero";
 import InfoBar from "./InfoBar";
+import MenuBrowser from "./MenuBrowser";
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
@@ -19,7 +20,9 @@ export async function generateMetadata({
   });
   if (!restaurant) return {};
   return {
-    title: restaurant.name,
+    // Root layout template appends " | Neighbours Club"
+    // → "Kanata Kitchen — Delivery | Neighbours Club"
+    title: `${restaurant.name} — Delivery`,
     description:
       restaurant.description ??
       `Order from ${restaurant.name} for delivery in Kanata.`,
@@ -73,12 +76,18 @@ export default async function DeliveryRestaurantPage({
     hours: restaurant.hours as unknown as OperatingHours,
   };
 
-  // Serialise menu items (price Decimal → number) for upcoming menu section
-  const _items = menuItems.map((item) => ({
-    ...item,
+  // Serialise menu items (Decimal → number, strip unused Date fields)
+  const items = menuItems.map((item) => ({
+    id: item.id,
+    name: item.name,
+    description: item.description,
     price: Number(item.price),
+    category: item.category,
+    tags: item.tags,
+    imageUrl: item.imageUrl,
+    colorHex: item.colorHex,
+    sortOrder: item.sortOrder,
   }));
-  void _items; // referenced by the menu section in the next build step
 
   return (
     <main className="flex flex-1 flex-col bg-background">
@@ -104,9 +113,8 @@ export default async function DeliveryRestaurantPage({
         hours={r.hours}
       />
 
-      {/* ── Menu sections ─────────────────────────────────────────────────
-          Built in the next step. Items are fetched above in `_items`.
-      ─────────────────────────────────────────────────────────────────── */}
+      {/* ── Menu browser — sticky tabs + scrollable sections ─────────── */}
+      <MenuBrowser items={items} />
     </main>
   );
 }

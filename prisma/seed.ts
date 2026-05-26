@@ -275,6 +275,241 @@ async function main() {
   });
 
   console.log("✓ Orders seeded");
+
+  // ---------------------------------------------------------------------------
+  // Delivery — Neighbourhood + Restaurant + MenuItems
+  // ---------------------------------------------------------------------------
+
+  const kanata = await prisma.neighbourhood.upsert({
+    where: { slug: "kanata" },
+    update: {},
+    create: {
+      name: "Kanata",
+      slug: "kanata",
+      city: "Ottawa",
+      isActive: true,
+    },
+  });
+
+  const kitchenHours = {
+    monday:    { open: "11:00", close: "21:00", isClosed: false },
+    tuesday:   { open: "11:00", close: "21:00", isClosed: false },
+    wednesday: { open: "11:00", close: "21:00", isClosed: false },
+    thursday:  { open: "11:00", close: "21:00", isClosed: false },
+    friday:    { open: "11:00", close: "22:00", isClosed: false },
+    saturday:  { open: "12:00", close: "22:00", isClosed: false },
+    sunday:    { open: "12:00", close: "20:00", isClosed: false },
+  };
+
+  const restaurant = await prisma.restaurant.upsert({
+    where: { slug: "kanata-kitchen" },
+    update: {},
+    create: {
+      neighbourhoodId: kanata.id,
+      name: "Kanata Kitchen",
+      slug: "kanata-kitchen",
+      description:
+        "Fresh, homestyle cooking made with locally sourced ingredients. Serving Kanata families since 2018.",
+      cuisine: "Canadian Comfort",
+      address: "100 Kanata Ave, Kanata, ON K2T 1E2",
+      heroImageUrl: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=80",
+      logoUrl: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=200&q=80",
+      rating: 4.7,
+      reviewCount: 312,
+      estimatedMinMin: 25,
+      estimatedMinMax: 40,
+      isActive: true,
+      isPaused: false,
+      ownerName: "Marie Fontaine",
+      ownerQuote: "We cook the way we'd want our family to eat.",
+      hours: kitchenHours,
+    },
+  });
+
+  // Helper — upsert menu items (idempotent re-seeds)
+  async function upsertItem(data: {
+    name: string;
+    description?: string;
+    price: number;
+    category: string;
+    tags?: string[];
+    imageUrl?: string;
+    colorHex?: string;
+    sortOrder: number;
+  }) {
+    // Use name+restaurantId as logical key (no unique constraint, so deleteMany + create)
+    await prisma.menuItem.deleteMany({
+      where: { restaurantId: restaurant.id, name: data.name },
+    });
+    await prisma.menuItem.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: data.name,
+        description: data.description ?? null,
+        price: data.price,
+        category: data.category,
+        tags: data.tags ?? [],
+        imageUrl: data.imageUrl ?? null,
+        colorHex: data.colorHex ?? null,
+        sortOrder: data.sortOrder,
+        isAvailable: true,
+      },
+    });
+  }
+
+  // Most Ordered — mix of image + list items
+  await upsertItem({
+    name: "Butter Chicken",
+    description: "Tender chicken thighs in a rich tomato-cream sauce. Served with basmati rice.",
+    price: 16.99,
+    category: "Most Ordered",
+    tags: ["popular", "gluten-free"],
+    imageUrl: "https://images.unsplash.com/photo-1588166524941-3bf61a9c41db?w=600&q=80",
+    sortOrder: 1,
+  });
+  await upsertItem({
+    name: "The Classic Burger",
+    description: "Double smash patty, aged cheddar, house sauce, brioche bun.",
+    price: 14.5,
+    category: "Most Ordered",
+    tags: ["popular"],
+    imageUrl: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&q=80",
+    sortOrder: 2,
+  });
+  await upsertItem({
+    name: "Caesar Salad",
+    description: "Romaine, house-made dressing, parmesan crisp, croutons.",
+    price: 11.0,
+    category: "Most Ordered",
+    tags: ["vegetarian"],
+    imageUrl: "https://images.unsplash.com/photo-1546793665-c74683f339c1?w=600&q=80",
+    sortOrder: 3,
+  });
+  await upsertItem({
+    name: "Poutine",
+    description: "Hand-cut fries, squeaky cheese curds, brown gravy.",
+    price: 9.5,
+    category: "Most Ordered",
+    tags: ["popular"],
+    imageUrl: "https://images.unsplash.com/photo-1543352634-a1c51d9f1fa7?w=600&q=80",
+    sortOrder: 4,
+  });
+
+  // Mains
+  await upsertItem({
+    name: "Grilled Salmon",
+    description: "Atlantic salmon, lemon dill butter, seasonal vegetables, wild rice.",
+    price: 22.0,
+    category: "Mains",
+    tags: ["gluten-free"],
+    imageUrl: "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=600&q=80",
+    sortOrder: 1,
+  });
+  await upsertItem({
+    name: "Mushroom Risotto",
+    description: "Arborio rice, cremini & shiitake mushrooms, truffle oil, parmesan.",
+    price: 18.0,
+    category: "Mains",
+    tags: ["vegetarian"],
+    imageUrl: "https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=80",
+    sortOrder: 2,
+  });
+  await upsertItem({
+    name: "Half Rack of Ribs",
+    description: "Slow-smoked baby back ribs, house BBQ sauce, coleslaw, cornbread.",
+    price: 26.5,
+    category: "Mains",
+    tags: [],
+    imageUrl: "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&q=80",
+    sortOrder: 3,
+  });
+  await upsertItem({
+    name: "Chicken Shawarma Wrap",
+    description: "Marinated chicken, garlic sauce, pickles, tomato, in a toasted flour wrap.",
+    price: 13.5,
+    category: "Mains",
+    tags: [],
+    imageUrl: "https://images.unsplash.com/photo-1561050501-3bc8ed5a7e5b?w=600&q=80",
+    sortOrder: 4,
+  });
+
+  // Sides — list cards (no images, use colorHex)
+  await upsertItem({
+    name: "Garlic Bread",
+    description: "Toasted sourdough, herb butter, roasted garlic.",
+    price: 4.5,
+    category: "Sides",
+    tags: ["vegetarian"],
+    colorHex: "#F5E6C8",
+    sortOrder: 1,
+  });
+  await upsertItem({
+    name: "Sweet Potato Fries",
+    description: "Lightly seasoned, served with chipotle mayo.",
+    price: 6.0,
+    category: "Sides",
+    tags: ["vegan", "gluten-free"],
+    colorHex: "#F4A460",
+    sortOrder: 2,
+  });
+  await upsertItem({
+    name: "Garden Side Salad",
+    description: "Mixed greens, cucumber, cherry tomatoes, balsamic vinaigrette.",
+    price: 5.5,
+    category: "Sides",
+    tags: ["vegan", "gluten-free"],
+    colorHex: "#90EE90",
+    sortOrder: 3,
+  });
+  await upsertItem({
+    name: "Soup of the Day",
+    description: "Ask your driver — changes daily. Served with a dinner roll.",
+    price: 6.5,
+    category: "Sides",
+    tags: [],
+    colorHex: "#DEB887",
+    sortOrder: 4,
+  });
+
+  // Drinks — list cards
+  await upsertItem({
+    name: "Fountain Soft Drink",
+    description: "Pepsi, Diet Pepsi, 7UP, or Ginger Ale. 500 mL.",
+    price: 2.5,
+    category: "Drinks",
+    tags: [],
+    colorHex: "#87CEEB",
+    sortOrder: 1,
+  });
+  await upsertItem({
+    name: "Sparkling Water",
+    description: "San Pellegrino 500 mL.",
+    price: 3.0,
+    category: "Drinks",
+    tags: [],
+    colorHex: "#E0F7FA",
+    sortOrder: 2,
+  });
+  await upsertItem({
+    name: "Craft Lemonade",
+    description: "House-made with fresh lemons and mint. 16 oz.",
+    price: 4.5,
+    category: "Drinks",
+    tags: ["vegan"],
+    colorHex: "#FFF9C4",
+    sortOrder: 3,
+  });
+  await upsertItem({
+    name: "Coffee or Tea",
+    description: "Freshly brewed drip coffee or steeped orange pekoe.",
+    price: 3.0,
+    category: "Drinks",
+    tags: [],
+    colorHex: "#8B4513",
+    sortOrder: 4,
+  });
+
+  console.log("✓ Delivery neighbourhood, restaurant, and menu items seeded");
   console.log("\nSeed complete.");
 }
 
