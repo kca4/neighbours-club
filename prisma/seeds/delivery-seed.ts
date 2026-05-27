@@ -5,6 +5,15 @@
  * and recreated per restaurant on each run.
  *
  * Run via:  npm run db:seed:delivery
+ *
+ * ── sortOrder convention ────────────────────────────────────────────────────
+ * Items the "Most Ordered" section should feature get global sortOrder 0–3.
+ * Every other item gets sortOrder 10+.
+ * This lets the page layer derive "Most Ordered" as:
+ *   menuItems.sort(sortOrder asc).slice(0, 4)
+ * …with a deterministic result and NO duplicate rows in the database.
+ * Each item has exactly one DB row and one ID regardless of how many
+ * sections display it.
  */
 
 import { PrismaClient, Prisma } from "@prisma/client";
@@ -24,11 +33,6 @@ const DAYS = [
   "sunday",
 ] as const;
 
-/**
- * Build a full weekly hours object.
- * Weekdays = Mon–Fri; weekend = Sat–Sun.
- * Any day listed in closedDays gets isClosed: true.
- */
 function buildHours(
   weekdayOpen: string,
   weekdayClose: string,
@@ -51,10 +55,6 @@ function buildHours(
   ) as OperatingHours;
 }
 
-/**
- * Generate a placehold.co image URL.
- * bg / fg should be bare hex codes without the leading #.
- */
 function ph(
   width: number,
   height: number,
@@ -104,6 +104,9 @@ interface RestaurantInput {
 }
 
 // ─── Restaurant + menu data ───────────────────────────────────────────────────
+//
+// sortOrder 0–3  → featured / "Most Ordered" items (derived at query time)
+// sortOrder 10+  → regular menu items, ordered within their category
 
 const RESTAURANTS: RestaurantInput[] = [
   // ── 1. Kanata Pizza Co. ───────────────────────────────────────────────────
@@ -129,13 +132,13 @@ const RESTAURANTS: RestaurantInput[] = [
     heroImageUrl: ph(800, 400, "8B0000", "Kanata Pizza Co.", "FAF8F3"),
     logoUrl:      ph(100, 100, "8B0000", "KPC",              "FAF8F3"),
     menuItems: [
-      // Most Ordered
+      // ── Pizza (sortOrder 0–1 = featured; 10+ = regular) ─────────────────
       {
         name: "Pepperoni Classico",
         description:
           "House tomato, fior di latte, double pepperoni, fresh basil, extra virgin olive oil.",
         price: 18.99,
-        category: "Most Ordered",
+        category: "Pizza",
         tags: ["popular"],
         colorHex: "#C94A2B",
         imageUrl: ph(400, 400, "C94A2B", "Pepperoni Classico"),
@@ -147,25 +150,13 @@ const RESTAURANTS: RestaurantInput[] = [
         description:
           "Smoky BBQ base, pulled chicken, red onion, aged cheddar, fresh cilantro.",
         price: 19.99,
-        category: "Most Ordered",
+        category: "Pizza",
         tags: ["popular"],
         colorHex: "#C97A35",
         imageUrl: ph(400, 400, "C97A35", "BBQ Chicken Pizza"),
         isAvailable: true,
         sortOrder: 1,
       },
-      {
-        name: "Garlic Bread",
-        description: "Toasted house bread, roasted garlic butter, sea salt, flat-leaf parsley.",
-        price: 6.99,
-        category: "Most Ordered",
-        tags: ["popular", "vegetarian"],
-        colorHex: "#C9A040",
-        imageUrl: ph(400, 400, "C9A040", "Garlic Bread"),
-        isAvailable: true,
-        sortOrder: 2,
-      },
-      // Pizza
       {
         name: "Margherita",
         description:
@@ -176,31 +167,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C94A2B",
         imageUrl: ph(400, 400, "C94A2B", "Margherita"),
         isAvailable: true,
-        sortOrder: 0,
-      },
-      {
-        name: "Pepperoni Classico",
-        description:
-          "House tomato, fior di latte, double pepperoni, fresh basil, extra virgin olive oil.",
-        price: 18.99,
-        category: "Pizza",
-        tags: ["popular"],
-        colorHex: "#C94A2B",
-        imageUrl: ph(400, 400, "C94A2B", "Pepperoni Classico"),
-        isAvailable: true,
-        sortOrder: 1,
-      },
-      {
-        name: "BBQ Chicken Pizza",
-        description:
-          "Smoky BBQ base, pulled chicken, red onion, aged cheddar, fresh cilantro.",
-        price: 19.99,
-        category: "Pizza",
-        tags: ["popular"],
-        colorHex: "#C97A35",
-        imageUrl: ph(400, 400, "C97A35", "BBQ Chicken Pizza"),
-        isAvailable: true,
-        sortOrder: 2,
+        sortOrder: 10,
       },
       {
         name: "Veggie Supreme",
@@ -212,7 +179,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#5A8C3A",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 3,
+        sortOrder: 11,
       },
       {
         name: "Meat Lovers",
@@ -224,9 +191,9 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#8B3A1A",
         imageUrl: ph(400, 400, "8B3A1A", "Meat Lovers"),
         isAvailable: true,
-        sortOrder: 4,
+        sortOrder: 12,
       },
-      // Apps
+      // ── Apps (sortOrder 2 = featured; 10+ = regular) ─────────────────────
       {
         name: "Garlic Bread",
         description: "Toasted house bread, roasted garlic butter, sea salt, flat-leaf parsley.",
@@ -236,7 +203,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C9A040",
         imageUrl: ph(400, 400, "C9A040", "Garlic Bread"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 2,
       },
       {
         name: "Mozzarella Sticks",
@@ -247,7 +214,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#D4A850",
         imageUrl: ph(400, 400, "D4A850", "Mozzarella Sticks"),
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 10,
       },
       {
         name: "Caesar Starter",
@@ -259,9 +226,9 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#8B9B3A",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 2,
+        sortOrder: 11,
       },
-      // Chicken
+      // ── Chicken (sortOrder 3 = featured; 10+ = regular) ──────────────────
       {
         name: "Honey Garlic Wings",
         description: "1 lb wings, double-fried, tossed in house honey garlic sauce.",
@@ -271,7 +238,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C97A35",
         imageUrl: ph(400, 400, "C97A35", "Honey Garlic Wings"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 3,
       },
       {
         name: "Crispy Chicken Tenders",
@@ -282,9 +249,9 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C9A040",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 10,
       },
-      // Salads
+      // ── Salads ───────────────────────────────────────────────────────────
       {
         name: "Classic Caesar",
         description: "Full-size. Romaine, house dressing, shaved parmesan, croutons.",
@@ -294,7 +261,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#8B9B3A",
         imageUrl: ph(400, 400, "8B9B3A", "Classic Caesar"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 10,
       },
       {
         name: "Garden Greek",
@@ -306,9 +273,9 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#5A8C3A",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 11,
       },
-      // Drinks
+      // ── Drinks ───────────────────────────────────────────────────────────
       {
         name: "Fountain Pop",
         description: "Coke, Diet Coke, Sprite, or Ginger Ale. 500 ml.",
@@ -318,7 +285,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#7AAFC8",
         imageUrl: ph(400, 400, "7AAFC8", "Fountain Pop"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 10,
       },
       {
         name: "Bottled Water",
@@ -329,7 +296,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#A0C8D8",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 11,
       },
       {
         name: "Fresh Lemonade",
@@ -340,7 +307,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#D4C840",
         imageUrl: ph(400, 400, "D4C840", "Fresh Lemonade"),
         isAvailable: true,
-        sortOrder: 2,
+        sortOrder: 12,
       },
     ],
   },
@@ -367,44 +334,7 @@ const RESTAURANTS: RestaurantInput[] = [
     heroImageUrl: ph(800, 400, "7B4A1A", "Amir's Shawarma", "FAF8F3"),
     logoUrl:      ph(100, 100, "7B4A1A", "AS",              "FAF8F3"),
     menuItems: [
-      // Most Ordered
-      {
-        name: "Chicken Shawarma Wrap",
-        description:
-          "Rotisserie chicken, house garlic sauce, pickles, tomato, parsley, fresh pita.",
-        price: 13.99,
-        category: "Most Ordered",
-        tags: ["popular"],
-        colorHex: "#C97A35",
-        imageUrl: ph(400, 400, "C97A35", "Chicken Shawarma"),
-        isAvailable: true,
-        sortOrder: 0,
-      },
-      {
-        name: "Mixed Shawarma Platter",
-        description:
-          "Chicken and beef over saffron rice. Garlic sauce, hot sauce, salad on the side.",
-        price: 21.99,
-        category: "Most Ordered",
-        tags: ["popular"],
-        colorHex: "#8B6B3A",
-        imageUrl: ph(400, 400, "8B6B3A", "Mixed Platter"),
-        isAvailable: true,
-        sortOrder: 1,
-      },
-      {
-        name: "Garlic Potatoes",
-        description:
-          "Crispy fried potatoes, house garlic sauce. The thing everyone orders twice.",
-        price: 5.99,
-        category: "Most Ordered",
-        tags: ["popular", "vegetarian"],
-        colorHex: "#C9B040",
-        imageUrl: ph(400, 400, "C9B040", "Garlic Potatoes"),
-        isAvailable: true,
-        sortOrder: 2,
-      },
-      // Wraps
+      // ── Wraps (sortOrder 0, 3 = featured; 10+ = regular) ─────────────────
       {
         name: "Chicken Shawarma Wrap",
         description:
@@ -423,11 +353,11 @@ const RESTAURANTS: RestaurantInput[] = [
           "Slow-marinated beef, tahini, pickled turnip, parsley, fresh pita.",
         price: 14.99,
         category: "Wraps",
-        tags: [],
+        tags: ["popular"],
         colorHex: "#8B3A1A",
         imageUrl: ph(400, 400, "8B3A1A", "Beef Shawarma"),
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 3,
       },
       {
         name: "Falafel Wrap",
@@ -439,7 +369,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#8B9B3A",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 2,
+        sortOrder: 10,
       },
       {
         name: "Mixed Wrap",
@@ -450,9 +380,21 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C97A35",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 3,
+        sortOrder: 11,
       },
-      // Platters
+      // ── Platters (sortOrder 1 = featured; 10+ = regular) ─────────────────
+      {
+        name: "Mixed Shawarma Platter",
+        description:
+          "Chicken and beef over saffron rice. Garlic sauce, hot sauce, salad on the side.",
+        price: 21.99,
+        category: "Platters",
+        tags: ["popular"],
+        colorHex: "#8B6B3A",
+        imageUrl: ph(400, 400, "8B6B3A", "Mixed Platter"),
+        isAvailable: true,
+        sortOrder: 1,
+      },
       {
         name: "Chicken Shawarma Platter",
         description:
@@ -463,7 +405,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C97A35",
         imageUrl: ph(400, 400, "C97A35", "Chicken Platter"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 10,
       },
       {
         name: "Beef Shawarma Platter",
@@ -475,21 +417,9 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#8B3A1A",
         imageUrl: ph(400, 400, "8B3A1A", "Beef Platter"),
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 11,
       },
-      {
-        name: "Mixed Shawarma Platter",
-        description:
-          "Chicken and beef over saffron rice. Garlic sauce, hot sauce, salad on the side.",
-        price: 21.99,
-        category: "Platters",
-        tags: ["popular"],
-        colorHex: "#8B6B3A",
-        imageUrl: null,
-        isAvailable: true,
-        sortOrder: 2,
-      },
-      // Sides
+      // ── Sides (sortOrder 2 = featured; 10+ = regular) ────────────────────
       {
         name: "Garlic Potatoes",
         description:
@@ -500,7 +430,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C9B040",
         imageUrl: ph(400, 400, "C9B040", "Garlic Potatoes"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 2,
       },
       {
         name: "Hummus & Pita",
@@ -512,7 +442,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#D4C8A0",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 10,
       },
       {
         name: "Tabouleh",
@@ -524,9 +454,9 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#8B9B3A",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 2,
+        sortOrder: 11,
       },
-      // Drinks
+      // ── Drinks ───────────────────────────────────────────────────────────
       {
         name: "Mint Lemonade",
         description: "Fresh mint, lemon, cane sugar. Made in-house daily.",
@@ -536,7 +466,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#8B9B3A",
         imageUrl: ph(400, 400, "8B9B3A", "Mint Lemonade"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 10,
       },
       {
         name: "Can of Pop",
@@ -547,7 +477,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#7AAFC8",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 11,
       },
     ],
   },
@@ -574,44 +504,7 @@ const RESTAURANTS: RestaurantInput[] = [
     heroImageUrl: ph(800, 400, "2D4A6B", "Sakura Sushi", "FAF8F3"),
     logoUrl:      ph(100, 100, "2D4A6B", "SS",          "FAF8F3"),
     menuItems: [
-      // Most Ordered
-      {
-        name: "Dragon Roll",
-        description:
-          "Shrimp tempura and cucumber inside. Avocado, unagi, tobiko on top. Chef's favourite.",
-        price: 17.99,
-        category: "Most Ordered",
-        tags: ["popular"],
-        colorHex: "#C94A6B",
-        imageUrl: ph(400, 400, "C94A6B", "Dragon Roll"),
-        isAvailable: true,
-        sortOrder: 0,
-      },
-      {
-        name: "Salmon Nigiri (2 pc)",
-        description:
-          "Atlantic salmon over sushi rice with wasabi. Consumed in one perfect bite.",
-        price: 7.99,
-        category: "Most Ordered",
-        tags: ["popular"],
-        colorHex: "#F08060",
-        imageUrl: ph(400, 400, "F08060", "Salmon Nigiri"),
-        isAvailable: true,
-        sortOrder: 1,
-      },
-      {
-        name: "Chicken Teriyaki Bento",
-        description:
-          "Grilled chicken, steamed rice, miso soup, edamame, gyoza, side salad.",
-        price: 18.99,
-        category: "Most Ordered",
-        tags: ["popular"],
-        colorHex: "#C97A35",
-        imageUrl: ph(400, 400, "C97A35", "Chicken Bento"),
-        isAvailable: true,
-        sortOrder: 2,
-      },
-      // Rolls
+      // ── Rolls (sortOrder 0, 3 = featured; 10+ = regular) ─────────────────
       {
         name: "Dragon Roll",
         description:
@@ -629,11 +522,11 @@ const RESTAURANTS: RestaurantInput[] = [
         description: "Crab, avocado, cucumber. Classic and consistent.",
         price: 12.99,
         category: "Rolls",
-        tags: [],
+        tags: ["popular"],
         colorHex: "#D4A850",
         imageUrl: ph(400, 400, "D4A850", "California Roll"),
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 3,
       },
       {
         name: "Spicy Tuna Roll",
@@ -644,7 +537,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C94A2B",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 2,
+        sortOrder: 10,
       },
       {
         name: "Veggie Roll",
@@ -656,7 +549,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#5A8C3A",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 3,
+        sortOrder: 11,
       },
       {
         name: "Tiger Roll",
@@ -668,9 +561,9 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C97A35",
         imageUrl: ph(400, 400, "C97A35", "Tiger Roll"),
         isAvailable: true,
-        sortOrder: 4,
+        sortOrder: 12,
       },
-      // Nigiri
+      // ── Nigiri (sortOrder 1 = featured; 10+ = regular) ───────────────────
       {
         name: "Salmon Nigiri (2 pc)",
         description:
@@ -681,7 +574,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#F08060",
         imageUrl: ph(400, 400, "F08060", "Salmon Nigiri"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 1,
       },
       {
         name: "Tuna Nigiri (2 pc)",
@@ -692,7 +585,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C94A6B",
         imageUrl: ph(400, 400, "C94A6B", "Tuna Nigiri"),
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 10,
       },
       {
         name: "Ebi Nigiri (2 pc)",
@@ -703,7 +596,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#F0A080",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 2,
+        sortOrder: 11,
       },
       {
         name: "Tamago Nigiri (2 pc)",
@@ -714,9 +607,9 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#D4C840",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 3,
+        sortOrder: 12,
       },
-      // Bento
+      // ── Bento (sortOrder 2 = featured; 10+ = regular) ────────────────────
       {
         name: "Chicken Teriyaki Bento",
         description:
@@ -727,7 +620,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C97A35",
         imageUrl: ph(400, 400, "C97A35", "Chicken Bento"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 2,
       },
       {
         name: "Salmon Sashimi Bento",
@@ -739,9 +632,9 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#F08060",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 10,
       },
-      // Drinks
+      // ── Drinks ───────────────────────────────────────────────────────────
       {
         name: "Ramune",
         description: "Original, strawberry, or watermelon. The glass marble bottle.",
@@ -751,7 +644,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#7AAFC8",
         imageUrl: ph(400, 400, "7AAFC8", "Ramune"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 10,
       },
       {
         name: "Green Tea",
@@ -762,7 +655,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#8B9B3A",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 11,
       },
     ],
   },
@@ -790,43 +683,7 @@ const RESTAURANTS: RestaurantInput[] = [
     heroImageUrl: ph(800, 400, "8B3A1A", "Stack'd Burgers", "FAF8F3"),
     logoUrl:      ph(100, 100, "8B3A1A", "SB",              "FAF8F3"),
     menuItems: [
-      // Most Ordered
-      {
-        name: "The Classic Smash",
-        description:
-          "Double smash patty, American cheese, house sauce, pickles, white onion, brioche.",
-        price: 14.99,
-        category: "Most Ordered",
-        tags: ["popular"],
-        colorHex: "#C97A35",
-        imageUrl: ph(400, 400, "C97A35", "Classic Smash"),
-        isAvailable: true,
-        sortOrder: 0,
-      },
-      {
-        name: "Bacon Cheddar Stack",
-        description:
-          "Double patty, aged cheddar, smoked bacon, caramelized onion, garlic aioli, brioche.",
-        price: 17.99,
-        category: "Most Ordered",
-        tags: ["popular"],
-        colorHex: "#C94A2B",
-        imageUrl: ph(400, 400, "C94A2B", "Bacon Cheddar"),
-        isAvailable: true,
-        sortOrder: 1,
-      },
-      {
-        name: "Seasoned Fries",
-        description: "Fresh-cut, double-fried, house seasoning blend.",
-        price: 5.99,
-        category: "Most Ordered",
-        tags: ["popular", "vegetarian"],
-        colorHex: "#C9A040",
-        imageUrl: ph(400, 400, "C9A040", "Seasoned Fries"),
-        isAvailable: true,
-        sortOrder: 2,
-      },
-      // Burgers
+      // ── Burgers (sortOrder 0, 1 = featured; 10+ = regular) ───────────────
       {
         name: "The Classic Smash",
         description:
@@ -861,7 +718,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#8B6B3A",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 2,
+        sortOrder: 10,
       },
       {
         name: "Spicy Jalapeño",
@@ -873,7 +730,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C94A2B",
         imageUrl: ph(400, 400, "C94A2B", "Spicy Jalapeno"),
         isAvailable: true,
-        sortOrder: 3,
+        sortOrder: 11,
       },
       {
         name: "The Veggie Stack",
@@ -885,9 +742,9 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#5A8C3A",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 4,
+        sortOrder: 12,
       },
-      // Sides
+      // ── Sides (sortOrder 2, 3 = featured; 10+ = regular) ─────────────────
       {
         name: "Seasoned Fries",
         description: "Fresh-cut, double-fried, house seasoning blend.",
@@ -897,18 +754,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C9A040",
         imageUrl: ph(400, 400, "C9A040", "Seasoned Fries"),
         isAvailable: true,
-        sortOrder: 0,
-      },
-      {
-        name: "Onion Rings",
-        description: "Beer-battered, fried golden. House chipotle dip.",
-        price: 6.99,
-        category: "Sides",
-        tags: ["vegetarian"],
-        colorHex: "#C9B040",
-        imageUrl: null,
-        isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 2,
       },
       {
         name: "Poutine",
@@ -919,9 +765,20 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#C97A35",
         imageUrl: ph(400, 400, "C97A35", "Poutine"),
         isAvailable: true,
-        sortOrder: 2,
+        sortOrder: 3,
       },
-      // Shakes
+      {
+        name: "Onion Rings",
+        description: "Beer-battered, fried golden. House chipotle dip.",
+        price: 6.99,
+        category: "Sides",
+        tags: ["vegetarian"],
+        colorHex: "#C9B040",
+        imageUrl: null,
+        isAvailable: true,
+        sortOrder: 10,
+      },
+      // ── Shakes ───────────────────────────────────────────────────────────
       {
         name: "Vanilla Shake",
         description: "Thick, hand-spun. Madagascar vanilla bean, 12 oz.",
@@ -931,7 +788,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#F0E8D0",
         imageUrl: ph(400, 400, "F0E8D0", "Vanilla Shake", "1A1A2E"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 10,
       },
       {
         name: "Chocolate Shake",
@@ -942,9 +799,9 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#8B5E3A",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 11,
       },
-      // Drinks
+      // ── Drinks ───────────────────────────────────────────────────────────
       {
         name: "Fountain Pop",
         description: "Coke, Diet Coke, Sprite, or Dr. Pepper. 500 ml.",
@@ -954,7 +811,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#7AAFC8",
         imageUrl: ph(400, 400, "7AAFC8", "Fountain Pop"),
         isAvailable: true,
-        sortOrder: 0,
+        sortOrder: 10,
       },
       {
         name: "Bottled Water",
@@ -965,7 +822,7 @@ const RESTAURANTS: RestaurantInput[] = [
         colorHex: "#A0C8D8",
         imageUrl: null,
         isAvailable: true,
-        sortOrder: 1,
+        sortOrder: 11,
       },
     ],
   },
@@ -974,7 +831,6 @@ const RESTAURANTS: RestaurantInput[] = [
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  // Ensure the Kanata neighbourhood exists
   const kanata = await prisma.neighbourhood.upsert({
     where: { slug: "kanata" },
     update: { isActive: true },
@@ -990,7 +846,6 @@ async function main() {
   for (const r of RESTAURANTS) {
     const { menuItems, hours, ...rest } = r;
 
-    // Upsert restaurant by slug
     const restaurant = await prisma.restaurant.upsert({
       where: { slug: r.slug },
       update: {
@@ -1005,21 +860,33 @@ async function main() {
       },
     });
 
-    // Replace all menu items (idempotent)
+    // Full replace — no "Most Ordered" category rows, no duplicates
     await prisma.menuItem.deleteMany({ where: { restaurantId: restaurant.id } });
     await prisma.menuItem.createMany({
       data: menuItems.map((item) => ({ ...item, restaurantId: restaurant.id })),
     });
 
-    const itemCounts = menuItems.reduce<Record<string, number>>((acc, item) => {
-      acc[item.category] = (acc[item.category] ?? 0) + 1;
+    // Verify no "Most Ordered" category crept back in
+    const badRows = menuItems.filter((i) => i.category === "Most Ordered");
+    if (badRows.length > 0) {
+      throw new Error(
+        `${restaurant.name}: ${badRows.length} item(s) still have category "Most Ordered". ` +
+          "Move them to a real category."
+      );
+    }
+
+    const byCat = menuItems.reduce<Record<string, number>>((acc, i) => {
+      acc[i.category] = (acc[i.category] ?? 0) + 1;
       return acc;
     }, {});
-    const summary = Object.entries(itemCounts)
+    const summary = Object.entries(byCat)
       .map(([cat, n]) => `${cat}(${n})`)
       .join(", ");
+    const featured = menuItems.filter((i) => i.sortOrder <= 3).length;
 
-    console.log(`✓ ${restaurant.name}: ${menuItems.length} items — ${summary}`);
+    console.log(
+      `✓ ${restaurant.name}: ${menuItems.length} items (${featured} featured) — ${summary}`
+    );
   }
 
   console.log("\nDelivery seed complete.");

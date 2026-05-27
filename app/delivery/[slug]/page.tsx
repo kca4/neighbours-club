@@ -89,6 +89,15 @@ export default async function DeliveryRestaurantPage({
     sortOrder: item.sortOrder,
   }));
 
+  // Derive "Most Ordered" — top 4 items by global sortOrder.
+  // Items with sortOrder 0–3 are the featured items seeded per restaurant.
+  // These are the SAME objects (same IDs) that appear in their real category
+  // sections — no duplicate rows, no duplicate IDs.
+  const mostOrderedItems = items
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+    .slice(0, 4);
+
   return (
     <main className="flex flex-1 flex-col bg-background">
       {/* ── Hero — full-width image with gradient + back button ─────────── */}
@@ -114,7 +123,7 @@ export default async function DeliveryRestaurantPage({
       />
 
       {/* ── Menu browser — sticky tabs + scrollable sections ─────────── */}
-      <MenuBrowser items={items} />
+      <MenuBrowser items={items} mostOrderedItems={mostOrderedItems} />
     </main>
   );
 }
