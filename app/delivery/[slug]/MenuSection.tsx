@@ -1,5 +1,6 @@
 import { ImageMenuItemCard, ListMenuItemCard } from "./MenuItemCard";
 import type { SerializedMenuItem } from "./MenuItemCard";
+import type { RestaurantInfo } from "../CartProvider";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -12,12 +13,14 @@ export function slugifyCategory(category: string): string {
 interface MenuSectionProps {
   category: string;
   items: SerializedMenuItem[];
+  restaurant: RestaurantInfo;
   isMostOrdered?: boolean;
 }
 
 export default function MenuSection({
   category,
   items,
+  restaurant,
   isMostOrdered = false,
 }: MenuSectionProps) {
   const imageItems = items.filter((item) => item.imageUrl);
@@ -33,9 +36,10 @@ export default function MenuSection({
 
     // "Great price" — lowest-priced item; skip the #1 item if possible
     const sorted = [...items].sort((a, b) => a.price - b.price);
-    greatPriceId = sorted[0].id === mostLikedId && sorted.length > 1
-      ? sorted[1].id
-      : sorted[0].id;
+    greatPriceId =
+      sorted[0].id === mostLikedId && sorted.length > 1
+        ? sorted[1].id
+        : sorted[0].id;
 
     // Don't show "Great price" if it would duplicate "#1 Most liked"
     if (greatPriceId === mostLikedId) greatPriceId = null;
@@ -71,7 +75,14 @@ export default function MenuSection({
                 : isMostOrdered && item.id === greatPriceId
                 ? "Great price"
                 : null;
-            return <ImageMenuItemCard key={item.id} item={item} badge={badge} />;
+            return (
+              <ImageMenuItemCard
+                key={item.id}
+                item={item}
+                restaurant={restaurant}
+                badge={badge}
+              />
+            );
           })}
         </div>
       )}
@@ -80,7 +91,7 @@ export default function MenuSection({
       {listItems.length > 0 && (
         <div className="mt-4 flex flex-col gap-3">
           {listItems.map((item) => (
-            <ListMenuItemCard key={item.id} item={item} />
+            <ListMenuItemCard key={item.id} item={item} restaurant={restaurant} />
           ))}
         </div>
       )}

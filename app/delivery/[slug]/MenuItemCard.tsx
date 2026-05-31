@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
+import { useCart } from "../CartProvider";
+import type { RestaurantInfo } from "../CartProvider";
 
 // ─── Type ─────────────────────────────────────────────────────────────────────
 
@@ -24,18 +26,47 @@ function formatPrice(price: number): string {
   return `$${price.toFixed(2)}`;
 }
 
+// ─── Add-button with visual feedback ──────────────────────────────────────────
+
+function useAddToCart(item: SerializedMenuItem, restaurant: RestaurantInfo) {
+  const { addItem } = useCart();
+  const [added, setAdded] = useState(false);
+
+  function handleAdd() {
+    const wasAdded = addItem(
+      {
+        itemId: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: 1,
+        imageUrl: item.imageUrl,
+        colorHex: item.colorHex,
+      },
+      restaurant
+    );
+    if (wasAdded) {
+      setAdded(true);
+      setTimeout(() => setAdded(false), 600);
+    }
+  }
+
+  return { added, handleAdd };
+}
+
 // ─── Image variant — 2-col grid ───────────────────────────────────────────────
 
 export function ImageMenuItemCard({
   item,
+  restaurant,
   badge,
 }: {
   item: SerializedMenuItem;
+  restaurant: RestaurantInfo;
   badge?: string | null;
 }) {
   const [imgError, setImgError] = useState(false);
-  // Fallback background: item's colorHex or brand teal
   const fallbackBg = item.colorHex ?? "#0F766E";
+  const { added, handleAdd } = useAddToCart(item, restaurant);
 
   return (
     <div className="flex flex-col gap-2">
@@ -51,7 +82,6 @@ export function ImageMenuItemCard({
             onError={() => setImgError(true)}
           />
         ) : (
-          /* Error fallback — solid color with item name */
           <div
             className="flex h-full w-full items-center justify-center p-3"
             style={{ backgroundColor: fallbackBg }}
@@ -71,11 +101,21 @@ export function ImageMenuItemCard({
 
         {/* Add button — bottom-right */}
         <button
-          onClick={() => console.log("Add to cart:", item.id)}
+          onClick={handleAdd}
           aria-label={`Add ${item.name} to cart`}
-          className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white shadow-md transition-transform active:scale-95 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+          className={[
+            "absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full text-white shadow-md",
+            "transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
+            added
+              ? "scale-110 bg-green-500"
+              : "bg-primary hover:bg-primary/90 active:scale-95",
+          ].join(" ")}
         >
-          <Plus size={16} strokeWidth={2.5} aria-hidden />
+          {added ? (
+            <Check size={16} strokeWidth={2.5} aria-hidden />
+          ) : (
+            <Plus size={16} strokeWidth={2.5} aria-hidden />
+          )}
         </button>
       </div>
 
@@ -89,7 +129,6 @@ export function ImageMenuItemCard({
         </p>
         <p className="mt-0.5 text-sm text-foreground/60">{formatPrice(item.price)}</p>
 
-        {/* Tags */}
         {item.tags.length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">
             {item.tags.map((tag) => (
@@ -109,7 +148,15 @@ export function ImageMenuItemCard({
 
 // ─── List variant — no image, full-width ──────────────────────────────────────
 
-export function ListMenuItemCard({ item }: { item: SerializedMenuItem }) {
+export function ListMenuItemCard({
+  item,
+  restaurant,
+}: {
+  item: SerializedMenuItem;
+  restaurant: RestaurantInfo;
+}) {
+  const { added, handleAdd } = useAddToCart(item, restaurant);
+
   return (
     <div className="flex items-center gap-3 rounded-xl border border-foreground/8 bg-white px-4 py-3">
       {/* Left — name, description, price */}
@@ -140,11 +187,21 @@ export function ListMenuItemCard({ item }: { item: SerializedMenuItem }) {
           />
         )}
         <button
-          onClick={() => console.log("Add to cart:", item.id)}
+          onClick={handleAdd}
           aria-label={`Add ${item.name} to cart`}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-sm transition-transform active:scale-95 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+          className={[
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white shadow-sm",
+            "transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
+            added
+              ? "scale-110 bg-green-500"
+              : "bg-primary hover:bg-primary/90 active:scale-95",
+          ].join(" ")}
         >
-          <Plus size={16} strokeWidth={2.5} aria-hidden />
+          {added ? (
+            <Check size={16} strokeWidth={2.5} aria-hidden />
+          ) : (
+            <Plus size={16} strokeWidth={2.5} aria-hidden />
+          )}
         </button>
       </div>
     </div>

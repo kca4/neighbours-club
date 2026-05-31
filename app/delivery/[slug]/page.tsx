@@ -98,6 +98,8 @@ export default async function DeliveryRestaurantPage({
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
     .slice(0, 4);
 
+  const restaurantInfo = { id: restaurant.id, name: restaurant.name, slug: restaurant.slug };
+
   return (
     <main className="flex flex-1 flex-col bg-background">
       {/* ── Hero — full-width image with gradient + back button ─────────── */}
@@ -123,7 +125,7 @@ export default async function DeliveryRestaurantPage({
       />
 
       {/* ── Menu browser — sticky tabs + scrollable sections ─────────── */}
-      <MenuBrowser items={items} mostOrderedItems={mostOrderedItems} />
+      <MenuBrowser key={slug} items={items} mostOrderedItems={mostOrderedItems} restaurant={restaurantInfo} />
     </main>
   );
 }

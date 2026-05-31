@@ -38,6 +38,7 @@ enum OrderStatus {
 }
 
 enum DeliveryOrderStatus {
+  pending_payment
   pending
   accepted
   cooking

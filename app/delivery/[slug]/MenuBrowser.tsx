@@ -5,6 +5,7 @@ import CategoryTabs from "./CategoryTabs";
 import MenuSection from "./MenuSection";
 import MenuSearchBar from "./MenuSearchBar";
 import type { SerializedMenuItem } from "./MenuItemCard";
+import type { RestaurantInfo } from "../CartProvider";
 
 // ─── Scroll-spy context ───────────────────────────────────────────────────────
 // CategoryTabs reads this to decide whether to run its IntersectionObserver.
@@ -48,11 +49,13 @@ interface MenuBrowserProps {
    * and slicing the first 4.
    */
   mostOrderedItems: SerializedMenuItem[];
+  /** Restaurant identity — passed down to menu cards for cart actions. */
+  restaurant: RestaurantInfo;
 }
 
 const MOST_ORDERED = "Most Ordered";
 
-export default function MenuBrowser({ items, mostOrderedItems }: MenuBrowserProps) {
+export default function MenuBrowser({ items, mostOrderedItems, restaurant }: MenuBrowserProps) {
   const [isScrollSpyActive, setScrollSpyActive] = useState(true);
   const [query, setQuery] = useState("");
 
@@ -70,7 +73,9 @@ export default function MenuBrowser({ items, mostOrderedItems }: MenuBrowserProp
   // ── Real categories — derived from items, never includes "Most Ordered" ──
   // Items in mostOrderedItems also appear here in their real categories,
   // matching the DoorDash pattern where popular items show up in both sections.
-  const realCategories = Array.from(new Set(items.map((item) => item.category)));
+  const realCategories = Array.from(
+    new Set(items.map((item) => item.category).filter((c) => c !== MOST_ORDERED))
+  );
 
   // ── Full category list for tabs ──────────────────────────────────────────
   // "Most Ordered" is first, but hidden during search (items are reachable
@@ -169,6 +174,7 @@ export default function MenuBrowser({ items, mostOrderedItems }: MenuBrowserProp
               key={cat}
               category={cat}
               items={byCategory.get(cat) ?? []}
+              restaurant={restaurant}
               // Show the subtitle + ranking badges only in the "Most Ordered"
               // section when not filtering (a filtered subset ≠ the ranked list).
               isMostOrdered={cat === MOST_ORDERED && !isSearching}
