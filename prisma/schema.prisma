@@ -38,15 +38,34 @@ enum OrderStatus {
 }
 
 enum DeliveryOrderStatus {
-  pending_payment
-  pending
-  accepted
-  cooking
-  ready
-  picked_up
-  on_the_way
-  delivered
-  cancelled
+  PENDING_PAYMENT      // Waiting on Stripe webhook
+  PENDING              // Paid, sitting in kitchen queue
+  ACCEPTED             // Claimed by internal driver
+  AWAITING_COURIER     // Rolled over to Uber API, searching (DO NOT COOK)
+  COURIER_ASSIGNED     // Uber driver locked in and en route (SAFE TO COOK)
+  COOKING              // Kitchen is actively preparing
+  READY                // Bagged and waiting for pickup
+  PICKED_UP            // In transit
+  DELIVERED            // Completed
+  CANCELLED            // Terminal failure state
+}
+
+enum FulfillmentType {
+  INTERNAL
+  UBER_DIRECT
+}
+
+enum DriverStatus {
+  OFFLINE
+  AVAILABLE
+  ON_DELIVERY
+}
+
+enum VehicleType {
+  CAR
+  BIKE
+  SCOOTER
+  FOOT
 }
 
 enum PartnerApplicationStatus {
@@ -121,7 +140,7 @@ model User {
   createdDeals        Deal[]           @relation("DealCreator")
   resetTokens         PasswordResetToken[]
   deliveryOrders      DeliveryOrder[]  @relation("CustomerOrders")
-  driverOrders        DeliveryOrder[]  @relation("DriverOrders")
+  deliveryDriver      DeliveryDriver?
   noteReactions       NoteReaction[]
   notesSubscription   Subscriber?
   partnerApplication  PartnerApplication?
@@ -329,7 +348,8 @@ model DeliveryOrder {
   restaurant      Restaurant @relation(fields: [restaurantId], references: [id])
 
   driverId        String?
-  driver          User?    @relation("DriverOrders", fields: [driverId], references: [id])
+  driver          DeliveryDriver? @relation("HistoricalDriverOrders", fields: [driverId], references: [id])
+  activeDriver    DeliveryDriver? @relation("ActiveDriverOrder")
 
   // Items snapshot (JSON so prices are locked at order time)
   items           Json
@@ -342,7 +362,11 @@ model DeliveryOrder {
   tipPct          Int?
   total           Decimal  @db.Decimal(10, 2)
 
-  status          DeliveryOrderStatus @default(pending)
+  status          DeliveryOrderStatus @default(PENDING_PAYMENT)
+  fulfillmentType FulfillmentType     @default(INTERNAL)
+  pickupPin       String?             // 4-digit verification code for Uber drivers
+  cancellationReason String?          // "Out of stock", "Kitchen slammed", etc.
+  needsAdminReview Boolean            @default(false) // true if cancelled after ACCEPTED
 
   stripePaymentIntentId String? @unique
 
@@ -351,7 +375,12 @@ model DeliveryOrder {
 
   driverNote      String?  @db.Text
 
+  // Courier job tracking
+  courierJobId        String?     // Uber Direct delivery ID (real) or stub jobId (simulated)
+  courierRequestedAt  DateTime?   // when createJob was called; simulated assignment delay measures from here
+
   // Timing
+  dispatchStartedAt   DateTime?   // set when payment confirms (PENDING_PAYMENT → PENDING); Uber fallback timer measures from here
   estimatedDeliveryAt DateTime?
   acceptedAt          DateTime?
   cookingStartedAt    DateTime?
@@ -369,6 +398,20 @@ model DeliveryOrder {
   @@index([userId])
   @@index([restaurantId, status])
   @@index([driverId, status])
+  @@index([status, dispatchStartedAt])
+}
+
+model DeliveryDriver {
+  id            String          @id @default(uuid())
+  userId        String          @unique
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status        DriverStatus    @default(OFFLINE)
+  vehicleType   VehicleType     @default(CAR)
+  activeOrderId String?         @unique  // one active delivery per driver
+  activeOrder   DeliveryOrder?  @relation("ActiveDriverOrder", fields: [activeOrderId], references: [id])
+  deliveries    DeliveryOrder[] @relation("HistoricalDriverOrders")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 }
 
 // ─── Notes / Editorial Models ─────────────────────────────────────────────────

@@ -9,7 +9,8 @@
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:delivery": "tsx prisma/seeds/delivery-seed.ts",
-    "seed:restaurants": "tsx scripts/seed-restaurants.ts"
+    "seed:restaurants": "tsx scripts/seed-restaurants.ts",
+    "dispatch:sweep": "curl -s -H \"Authorization: Bearer $CRON_SECRET\" http://localhost:3000/api/dispatch/cron-sweep | cat"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -19,6 +20,7 @@
     "@prisma/client": "^5.22.0",
     "@stripe/react-stripe-js": "^6.2.0",
     "@stripe/stripe-js": "^9.3.1",
+    "@tanstack/react-query": "^5.100.14",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",

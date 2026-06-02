@@ -64,10 +64,13 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      if (order.status === DeliveryOrderStatus.pending_payment) {
+      if (order.status === DeliveryOrderStatus.PENDING_PAYMENT) {
         await prisma.deliveryOrder.update({
           where: { id: order.id },
-          data: { status: DeliveryOrderStatus.pending },
+          data: {
+            status: DeliveryOrderStatus.PENDING,
+            dispatchStartedAt: new Date(),
+          },
         });
         console.log(`[delivery-webhook] Order ${orderId} payment confirmed`);
       } else {
@@ -94,10 +97,10 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      if (order.status === DeliveryOrderStatus.pending_payment) {
+      if (order.status === DeliveryOrderStatus.PENDING_PAYMENT) {
         await prisma.deliveryOrder.update({
           where: { id: order.id },
-          data: { status: DeliveryOrderStatus.cancelled },
+          data: { status: DeliveryOrderStatus.CANCELLED },
         });
         console.log(`[delivery-webhook] Order ${orderId} payment failed`);
       }

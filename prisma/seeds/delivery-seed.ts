@@ -1,8 +1,10 @@
 /**
- * Delivery vertical seed — 4 Kanata restaurants with full menus.
+ * Delivery vertical seed — 4 Kanata restaurants with full menus,
+ * owner users per restaurant, a customer user, and test orders
+ * covering every active DeliveryOrderStatus for the kitchen dashboard.
  *
  * Idempotent: restaurants are upserted by slug; menu items are deleted
- * and recreated per restaurant on each run.
+ * and recreated per restaurant on each run; orders are deleted and recreated.
  *
  * Run via:  npm run db:seed:delivery
  *
@@ -16,7 +18,15 @@
  * sections display it.
  */
 
-import { PrismaClient, Prisma } from "@prisma/client";
+import {
+  PrismaClient,
+  Prisma,
+  DeliveryOrderStatus,
+  DriverStatus,
+  FulfillmentType,
+  VehicleType,
+} from "@prisma/client";
+import bcrypt from "bcryptjs";
 import type { OperatingHours } from "../../lib/types/delivery";
 
 const prisma = new PrismaClient();
@@ -101,6 +111,8 @@ interface RestaurantInput {
   heroImageUrl: string;
   logoUrl: string;
   menuItems: MenuItemInput[];
+  // Owner user credentials — created and linked to Restaurant.ownerId
+  ownerEmail: string;
 }
 
 // ─── Restaurant + menu data ───────────────────────────────────────────────────
@@ -120,6 +132,7 @@ const RESTAURANTS: RestaurantInput[] = [
       "Hand-tossed dough, San Marzano tomatoes, and real mozzarella. " +
       "Family-owned and Kanata-rooted since 2018.",
     ownerName: "Marco Ferraro",
+    ownerEmail: "marco@kanata-pizza.dev",
     ownerQuote:
       "Every dough ball tells you what it needs — you just have to listen.",
     hours: buildHours("11:00", "22:00", "11:00", "23:00"),
@@ -323,6 +336,7 @@ const RESTAURANTS: RestaurantInput[] = [
       "Rotisserie-marinated chicken and beef, hand-pressed wraps, and a garlic sauce " +
       "you'll be thinking about for days. Family recipe, Kanata institution.",
     ownerName: "Amir Khalil",
+    ownerEmail: "amir@amirs-shawarma.dev",
     ownerQuote: "My mother's garlic sauce recipe. Nobody has it. Nobody ever will.",
     hours: buildHours("11:00", "23:00", "11:00", "00:00", ["monday"]),
     isActive: true,
@@ -493,6 +507,7 @@ const RESTAURANTS: RestaurantInput[] = [
       "Daily-fresh nigiri, creative rolls, and bento boxes prepared with precision. " +
       "Kanata's most-loved sushi since 2020.",
     ownerName: "Yuki Tanaka",
+    ownerEmail: "yuki@sakura-sushi.dev",
     ownerQuote: "Fresh fish, sharp knife, cold hands. That is all.",
     hours: buildHours("12:00", "21:30", "12:00", "22:00", ["tuesday"]),
     isActive: true,
@@ -671,6 +686,7 @@ const RESTAURANTS: RestaurantInput[] = [
       "Smash-style patties, hand-formed daily. Brioche buns baked this morning. " +
       "No freezer. No exceptions.",
     ownerName: "Devon Marchetti",
+    ownerEmail: "devon@stackd-burgers.dev",
     ownerQuote:
       "A great burger is just respect — for the beef, the bun, and the person eating it.",
     hours: buildHours("11:00", "22:00", "11:00", "23:00"),
@@ -828,9 +844,18 @@ const RESTAURANTS: RestaurantInput[] = [
   },
 ];
 
+// ─── Shared delivery address for test orders ──────────────────────────────────
+
+const TEST_ADDRESS = {
+  street: "51 Stonehaven Dr",
+  unit: null,
+  instructions: "Ring doorbell twice",
+};
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
+  // ── Kanata neighbourhood ────────────────────────────────────────────────────
   const kanata = await prisma.neighbourhood.upsert({
     where: { slug: "kanata" },
     update: { isActive: true },
@@ -843,22 +868,107 @@ async function main() {
   });
   console.log(`✓ Neighbourhood: ${kanata.name} (${kanata.id})`);
 
-  for (const r of RESTAURANTS) {
-    const { menuItems, hours, ...rest } = r;
+  // ── Customer user for test orders ───────────────────────────────────────────
+  const passwordHash = await bcrypt.hash("devpassword123", 10);
 
+  const customer = await prisma.user.upsert({
+    where: { email: "customer@test.dev" },
+    update: {},
+    create: {
+      email: "customer@test.dev",
+      name: "Alex Testuser",
+      firstName: "Alex",
+      passwordHash,
+      role: "MEMBER",
+      neighbourhoodId: kanata.id,
+      hasCompletedOnboarding: true,
+    },
+  });
+  console.log(`✓ Customer user: ${customer.email} (${customer.id})`);
+
+  // ── Driver users + DeliveryDriver records ───────────────────────────────────
+  type DriverSeed = {
+    email: string;
+    name: string;
+    status: DriverStatus;
+    vehicleType: VehicleType;
+  };
+
+  const DRIVERS: DriverSeed[] = [
+    { email: "driver1@test.dev", name: "Jordan Speedy",  status: DriverStatus.AVAILABLE,    vehicleType: VehicleType.CAR   },
+    { email: "driver2@test.dev", name: "Sam Wheeler",    status: DriverStatus.OFFLINE,       vehicleType: VehicleType.BIKE  },
+    { email: "driver3@test.dev", name: "Taylor Routes",  status: DriverStatus.ON_DELIVERY,   vehicleType: VehicleType.SCOOTER },
+  ];
+
+  for (const d of DRIVERS) {
+    const driverUser = await prisma.user.upsert({
+      where: { email: d.email },
+      update: {},
+      create: {
+        email: d.email,
+        name: d.name,
+        firstName: d.name.split(" ")[0],
+        passwordHash,
+        role: "COURIER",
+        neighbourhoodId: kanata.id,
+        hasCompletedOnboarding: true,
+      },
+    });
+
+    await prisma.deliveryDriver.upsert({
+      where: { userId: driverUser.id },
+      update: { status: d.status, vehicleType: d.vehicleType },
+      create: {
+        userId: driverUser.id,
+        status: d.status,
+        vehicleType: d.vehicleType,
+      },
+    });
+
+    console.log(`✓ Driver: ${d.email} — ${d.status} / ${d.vehicleType}`);
+  }
+
+  // ── Restaurants + owner users ───────────────────────────────────────────────
+  const restaurantMap: Record<string, string> = {}; // slug → restaurant id
+
+  for (const r of RESTAURANTS) {
+    const { menuItems, hours, ownerEmail, ownerName, ...rest } = r;
+
+    // Upsert owner user
+    const owner = await prisma.user.upsert({
+      where: { email: ownerEmail },
+      update: {},
+      create: {
+        email: ownerEmail,
+        name: ownerName,
+        firstName: ownerName.split(" ")[0],
+        passwordHash,
+        role: "RESTAURANT_OWNER",
+        neighbourhoodId: kanata.id,
+        hasCompletedOnboarding: true,
+      },
+    });
+
+    // Upsert restaurant (without ownerId first to avoid unique constraint issues)
     const restaurant = await prisma.restaurant.upsert({
       where: { slug: r.slug },
       update: {
         ...rest,
+        ownerName,
         hours: hours as unknown as Prisma.InputJsonValue,
         neighbourhoodId: kanata.id,
+        ownerId: owner.id,
       },
       create: {
         ...rest,
+        ownerName,
         hours: hours as unknown as Prisma.InputJsonValue,
         neighbourhoodId: kanata.id,
+        ownerId: owner.id,
       },
     });
+
+    restaurantMap[r.slug] = restaurant.id;
 
     // Full replace — no "Most Ordered" category rows, no duplicates
     await prisma.menuItem.deleteMany({ where: { restaurantId: restaurant.id } });
@@ -885,10 +995,184 @@ async function main() {
     const featured = menuItems.filter((i) => i.sortOrder <= 3).length;
 
     console.log(
-      `✓ ${restaurant.name}: ${menuItems.length} items (${featured} featured) — ${summary}`
+      `✓ ${restaurant.name}: ${menuItems.length} items (${featured} featured) — ${summary} | owner: ${ownerEmail}`
     );
   }
 
+  // ── Test orders for Kanata Pizza Co. ───────────────────────────────────────
+  // These give the kitchen dashboard data to render on load.
+  // Each order targets a different DeliveryOrderStatus so every dashboard
+  // state can be exercised without real transactions.
+
+  const pizzaId = restaurantMap["kanata-pizza-co"];
+  if (!pizzaId) throw new Error("Kanata Pizza Co. not found after upsert");
+
+  // Clear previous test orders for this restaurant only
+  await prisma.deliveryOrder.deleteMany({ where: { restaurantId: pizzaId } });
+
+  type OrderRow = {
+    label: string;
+    status: DeliveryOrderStatus;
+    fulfillmentType: FulfillmentType;
+    pickupPin?: string;
+    dispatchStartedAt?: Date;
+    courierJobId?: string;
+    courierRequestedAt?: Date;
+    items: { itemId: string; name: string; price: number; quantity: number }[];
+    subtotal: number;
+    deliveryFee: number;
+    serviceFee: number;
+    tax: number;
+    tip: number;
+    tipPct: number;
+    total: number;
+  };
+
+  const orders: OrderRow[] = [
+    // 1. PENDING — paid, sitting in queue, no internal driver yet
+    // dispatchStartedAt is 4 min ago so the cron's 3-min timeout fires immediately
+    {
+      label: "PENDING / INTERNAL",
+      status: DeliveryOrderStatus.PENDING,
+      fulfillmentType: FulfillmentType.INTERNAL,
+      dispatchStartedAt: new Date(Date.now() - 4 * 60 * 1000), // 4 min ago → eligible for Uber fallback
+      items: [
+        { itemId: "seed-item-1", name: "Pepperoni Classico", price: 18.99, quantity: 1 },
+        { itemId: "seed-item-2", name: "Garlic Bread",       price: 6.99,  quantity: 2 },
+      ],
+      subtotal: 32.97,
+      deliveryFee: 2.99,
+      serviceFee: 1.49,
+      tax: 4.84,
+      tip: 4.95,
+      tipPct: 15,
+      total: 47.24,
+    },
+    // 2. ACCEPTED — claimed by internal driver
+    {
+      label: "ACCEPTED / INTERNAL",
+      status: DeliveryOrderStatus.ACCEPTED,
+      fulfillmentType: FulfillmentType.INTERNAL,
+      dispatchStartedAt: new Date(Date.now() - 4 * 60 * 1000), // 4 min ago
+      items: [
+        { itemId: "seed-item-3", name: "BBQ Chicken Pizza",    price: 19.99, quantity: 1 },
+        { itemId: "seed-item-4", name: "Honey Garlic Wings",   price: 16.99, quantity: 1 },
+        { itemId: "seed-item-5", name: "Fountain Pop",         price: 2.99,  quantity: 2 },
+      ],
+      subtotal: 42.96,
+      deliveryFee: 2.99,
+      serviceFee: 1.49,
+      tax: 6.14,
+      tip: 6.44,
+      tipPct: 15,
+      total: 60.02,
+    },
+    // 3. AWAITING_COURIER — rolled to Uber Direct, do NOT cook yet
+    // courierRequestedAt is 30s ago so the cron's 20s simulated delay has already elapsed
+    {
+      label: "AWAITING_COURIER / UBER_DIRECT",
+      status: DeliveryOrderStatus.AWAITING_COURIER,
+      fulfillmentType: FulfillmentType.UBER_DIRECT,
+      dispatchStartedAt: new Date(Date.now() - 5 * 60 * 1000),   // 5 min ago
+      courierJobId: "uber_sim_seed_001",                          // as if createJob already ran
+      pickupPin: "7392",
+      courierRequestedAt: new Date(Date.now() - 30 * 1000),      // 30s ago → past 20s threshold
+      items: [
+        { itemId: "seed-item-6", name: "Meat Lovers",          price: 22.99, quantity: 1 },
+        { itemId: "seed-item-7", name: "Classic Caesar",       price: 11.99, quantity: 1 },
+      ],
+      subtotal: 34.98,
+      deliveryFee: 2.99,
+      serviceFee: 1.49,
+      tax: 5.07,
+      tip: 5.25,
+      tipPct: 15,
+      total: 49.78,
+    },
+    // 4. COURIER_ASSIGNED — Uber driver locked in, safe to cook
+    {
+      label: "COURIER_ASSIGNED / UBER_DIRECT",
+      status: DeliveryOrderStatus.COURIER_ASSIGNED,
+      fulfillmentType: FulfillmentType.UBER_DIRECT,
+      pickupPin: "4821",
+      dispatchStartedAt: new Date(Date.now() - 8 * 60 * 1000), // 8 min ago
+      items: [
+        { itemId: "seed-item-8",  name: "Margherita",          price: 16.99, quantity: 2 },
+        { itemId: "seed-item-9",  name: "Mozzarella Sticks",   price: 10.99, quantity: 1 },
+        { itemId: "seed-item-10", name: "Fresh Lemonade",      price: 3.99,  quantity: 2 },
+      ],
+      subtotal: 52.95,
+      deliveryFee: 2.99,
+      serviceFee: 1.49,
+      tax: 7.50,
+      tip: 7.94,
+      tipPct: 15,
+      total: 72.87,
+    },
+    // 5. COOKING — actively being prepared
+    {
+      label: "COOKING / INTERNAL",
+      status: DeliveryOrderStatus.COOKING,
+      fulfillmentType: FulfillmentType.INTERNAL,
+      items: [
+        { itemId: "seed-item-11", name: "Veggie Supreme",      price: 17.99, quantity: 1 },
+        { itemId: "seed-item-12", name: "Caesar Starter",      price: 9.99,  quantity: 1 },
+        { itemId: "seed-item-13", name: "Bottled Water",       price: 1.99,  quantity: 2 },
+      ],
+      subtotal: 31.96,
+      deliveryFee: 2.99,
+      serviceFee: 1.49,
+      tax: 4.69,
+      tip: 4.79,
+      tipPct: 15,
+      total: 45.92,
+    },
+    // 6. READY — bagged and waiting for pickup
+    {
+      label: "READY / INTERNAL",
+      status: DeliveryOrderStatus.READY,
+      fulfillmentType: FulfillmentType.INTERNAL,
+      items: [
+        { itemId: "seed-item-14", name: "Pepperoni Classico",  price: 18.99, quantity: 1 },
+        { itemId: "seed-item-15", name: "Crispy Chicken Tenders", price: 14.99, quantity: 1 },
+      ],
+      subtotal: 33.98,
+      deliveryFee: 2.99,
+      serviceFee: 1.49,
+      tax: 4.96,
+      tip: 5.10,
+      tipPct: 15,
+      total: 48.52,
+    },
+  ];
+
+  for (const o of orders) {
+    await prisma.deliveryOrder.create({
+      data: {
+        userId: customer.id,
+        restaurantId: pizzaId,
+        items: o.items as unknown as Prisma.InputJsonValue,
+        subtotal: o.subtotal,
+        deliveryFee: o.deliveryFee,
+        serviceFee: o.serviceFee,
+        tax: o.tax,
+        tip: o.tip,
+        tipPct: o.tipPct,
+        total: o.total,
+        status: o.status,
+        fulfillmentType: o.fulfillmentType,
+        pickupPin: o.pickupPin ?? null,
+        dispatchStartedAt: o.dispatchStartedAt ?? null,
+        courierJobId: o.courierJobId ?? null,
+        courierRequestedAt: o.courierRequestedAt ?? null,
+        deliveryAddress: TEST_ADDRESS as unknown as Prisma.InputJsonValue,
+        estimatedDeliveryAt: new Date(Date.now() + 40 * 60 * 1000), // 40 min from now
+      },
+    });
+    console.log(`  ✓ Order: ${o.label}`);
+  }
+
+  console.log(`\n✓ ${orders.length} test orders created for Kanata Pizza Co.`);
   console.log("\nDelivery seed complete.");
 }
 
