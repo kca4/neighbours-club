@@ -4,7 +4,10 @@ import HeaderNav from "./HeaderNav";
 
 export default async function Header() {
   const session = await auth();
-  const isAdmin = session?.user?.role === "ADMIN";
+  const role = session?.user?.role;
+  const isAdmin = role === "ADMIN";
+  const isRestaurantOwner = role === "RESTAURANT_OWNER";
+  const isCourier = role === "COURIER";
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-foreground/8 bg-background/95 backdrop-blur">
@@ -32,7 +35,12 @@ export default async function Header() {
           Neighbours Club
         </Link>
 
-        <HeaderNav isLoggedIn={!!session} isAdmin={isAdmin} />
+        <HeaderNav
+          isLoggedIn={!!session}
+          isAdmin={isAdmin}
+          isRestaurantOwner={isRestaurantOwner}
+          isCourier={isCourier}
+        />
       </div>
     </header>
   );

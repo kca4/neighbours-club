@@ -2,40 +2,59 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import SignOutButton from "./SignOutButton";
 
 interface HeaderNavProps {
   isLoggedIn: boolean;
   isAdmin: boolean;
+  isRestaurantOwner: boolean;
+  isCourier: boolean;
 }
 
-export default function HeaderNav({ isLoggedIn, isAdmin }: HeaderNavProps) {
+export default function HeaderNav({
+  isLoggedIn,
+  isAdmin,
+  isRestaurantOwner,
+  isCourier,
+}: HeaderNavProps) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   const close = () => setOpen(false);
+
+  const isDeliveryActive = pathname.startsWith("/delivery");
+
+  // ── Link class helpers ────────────────────────────────────────────────────
+  const desktopLink =
+    "min-h-[44px] flex items-center px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors";
+  const desktopLinkActive =
+    "min-h-[44px] flex items-center px-3 text-sm font-medium text-foreground transition-colors";
+  const mobileLink =
+    "min-h-[48px] flex items-center px-2 text-sm font-medium text-foreground/70 hover:text-foreground border-b border-foreground/5 transition-colors";
+  const mobileLinkActive =
+    "min-h-[48px] flex items-center px-2 text-sm font-medium text-foreground border-b border-foreground/5 transition-colors";
 
   return (
     <>
       {/* ── Desktop nav (sm+) ─────────────────────────── */}
       <nav className="hidden sm:flex items-center gap-0.5 sm:gap-1" aria-label="Main navigation">
-        <Link
-          href="/deals"
-          className="min-h-[44px] flex items-center px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
-        >
+        <Link href="/deals" className={desktopLink}>
           Deals
         </Link>
-        <Link
-          href="/notes"
-          className="min-h-[44px] flex items-center px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
-        >
+        <Link href="/notes" className={desktopLink}>
           Notes
+        </Link>
+        <Link
+          href="/delivery"
+          className={isDeliveryActive ? desktopLinkActive : desktopLink}
+          aria-current={isDeliveryActive ? "page" : undefined}
+        >
+          Order Food
         </Link>
         {!isLoggedIn ? (
           <>
-            <Link
-              href="/signin"
-              className="min-h-[44px] flex items-center px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
-            >
+            <Link href="/signin" className={desktopLink}>
               Sign in
             </Link>
             <Link
@@ -47,18 +66,28 @@ export default function HeaderNav({ isLoggedIn, isAdmin }: HeaderNavProps) {
           </>
         ) : (
           <>
-            <Link
-              href="/my-deals"
-              className="min-h-[44px] flex items-center px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
-            >
+            <Link href="/my-deals" className={desktopLink}>
               My Deals
             </Link>
-            <Link
-              href="/account"
-              className="min-h-[44px] flex items-center px-3 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
-            >
+            <Link href="/account" className={desktopLink}>
               Account
             </Link>
+            {isRestaurantOwner && (
+              <Link
+                href="/delivery/dashboard"
+                className="min-h-[44px] flex items-center px-3 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+              >
+                Restaurant Dashboard
+              </Link>
+            )}
+            {isCourier && (
+              <Link
+                href="/delivery/driver"
+                className="min-h-[44px] flex items-center px-3 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+              >
+                Driver
+              </Link>
+            )}
             {isAdmin && (
               <Link
                 href="/admin"
@@ -103,27 +132,23 @@ export default function HeaderNav({ isLoggedIn, isAdmin }: HeaderNavProps) {
           className="sm:hidden absolute top-full left-0 right-0 z-50 border-b border-foreground/8 bg-background/98 backdrop-blur shadow-lg"
         >
           <nav className="mx-auto max-w-5xl flex flex-col px-4 py-2" aria-label="Mobile navigation">
-            <Link
-              href="/deals"
-              onClick={close}
-              className="min-h-[48px] flex items-center px-2 text-sm font-medium text-foreground/70 hover:text-foreground border-b border-foreground/5 transition-colors"
-            >
+            <Link href="/deals" onClick={close} className={mobileLink}>
               Deals
             </Link>
-            <Link
-              href="/notes"
-              onClick={close}
-              className="min-h-[48px] flex items-center px-2 text-sm font-medium text-foreground/70 hover:text-foreground border-b border-foreground/5 transition-colors"
-            >
+            <Link href="/notes" onClick={close} className={mobileLink}>
               Notes
+            </Link>
+            <Link
+              href="/delivery"
+              onClick={close}
+              className={isDeliveryActive ? mobileLinkActive : mobileLink}
+              aria-current={isDeliveryActive ? "page" : undefined}
+            >
+              Order Food
             </Link>
             {!isLoggedIn ? (
               <>
-                <Link
-                  href="/signin"
-                  onClick={close}
-                  className="min-h-[48px] flex items-center px-2 text-sm font-medium text-foreground/70 hover:text-foreground border-b border-foreground/5 transition-colors"
-                >
+                <Link href="/signin" onClick={close} className={mobileLink}>
                   Sign in
                 </Link>
                 <div className="py-3">
@@ -139,20 +164,30 @@ export default function HeaderNav({ isLoggedIn, isAdmin }: HeaderNavProps) {
               </>
             ) : (
               <>
-                <Link
-                  href="/my-deals"
-                  onClick={close}
-                  className="min-h-[48px] flex items-center px-2 text-sm font-medium text-foreground/70 hover:text-foreground border-b border-foreground/5 transition-colors"
-                >
+                <Link href="/my-deals" onClick={close} className={mobileLink}>
                   My Deals
                 </Link>
-                <Link
-                  href="/account"
-                  onClick={close}
-                  className="min-h-[48px] flex items-center px-2 text-sm font-medium text-foreground/70 hover:text-foreground border-b border-foreground/5 transition-colors"
-                >
+                <Link href="/account" onClick={close} className={mobileLink}>
                   Account
                 </Link>
+                {isRestaurantOwner && (
+                  <Link
+                    href="/delivery/dashboard"
+                    onClick={close}
+                    className="min-h-[48px] flex items-center px-2 text-sm font-medium text-primary hover:text-primary/80 border-b border-foreground/5 transition-colors"
+                  >
+                    Restaurant Dashboard
+                  </Link>
+                )}
+                {isCourier && (
+                  <Link
+                    href="/delivery/driver"
+                    onClick={close}
+                    className="min-h-[48px] flex items-center px-2 text-sm font-medium text-primary hover:text-primary/80 border-b border-foreground/5 transition-colors"
+                  >
+                    Driver
+                  </Link>
+                )}
                 {isAdmin && (
                   <Link
                     href="/admin"
