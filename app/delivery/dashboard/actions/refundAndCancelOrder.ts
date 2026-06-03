@@ -3,7 +3,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
-import { DeliveryOrderStatus } from "@prisma/client";
+import { DeliveryOrderStatus, DriverStatus } from "@prisma/client";
 
 // ─── Input ────────────────────────────────────────────────────────────────────
 
@@ -44,6 +44,7 @@ export async function refundAndCancelOrder(
       status: true,
       stripePaymentIntentId: true,
       cancellationReason: true,
+      driverId: true,
     },
   });
 
@@ -98,6 +99,16 @@ export async function refundAndCancelOrder(
           needsAdminReview: isEmergencyCancel,
         },
       });
+
+      // Release the driver if one was assigned to this order.
+      // updateMany with the activeOrderId guard is idempotent — if the driver
+      // already moved on (rare race), the where clause simply matches 0 rows.
+      if (order.driverId) {
+        await tx.deliveryDriver.updateMany({
+          where: { id: order.driverId, activeOrderId: orderId },
+          data: { status: DriverStatus.AVAILABLE, activeOrderId: null },
+        });
+      }
     });
   } catch (err) {
     // Refund already issued — log clearly so ops can reconcile.

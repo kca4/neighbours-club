@@ -68,6 +68,13 @@ function isAuthorized(req: NextRequest): boolean {
 const INTERNAL_TIMEOUT_MS  = 3 * 60 * 1000;  // 3 min before Uber fallback
 const SIMULATED_ASSIGN_MS  = 20 * 1000;       // 20 s simulated courier search
 
+// Phase 3 thresholds — only active when USE_SHIPPING_STUB=true.
+// These simulate the Uber driver arriving and completing the delivery so the
+// full lifecycle can be exercised end-to-end in a dev/staging environment.
+// In production the real Uber Direct webhook fires these transitions instead.
+const UBER_STUB_PICKUP_DELAY_MS  = 2 * 60 * 1000; // 2 min after readyAt → PICKED_UP
+const UBER_STUB_DELIVER_DELAY_MS = 3 * 60 * 1000; // 3 min after pickedUpAt → DELIVERED
+
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
@@ -75,8 +82,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  try {
+    return await runSweep();
+  } catch (err) {
+    console.error("[dispatch-sweep] Unhandled error:", err);
+    return NextResponse.json(
+      { error: "Internal server error", detail: String(err) },
+      { status: 500 }
+    );
+  }
+}
+
+async function runSweep() {
   let sweptToFallback = 0;
   let couriersAssigned = 0;
+  let stubPickedUp = 0;
+  let stubDelivered = 0;
 
   // ── Phase 1: PENDING → AWAITING_COURIER (internal timeout) ─────────────────
 
@@ -187,12 +208,80 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── Phase 3: reserved ───────────────────────────────────────────────────────
-  // (stale order cleanup, etc. — not implemented yet)
+  // ── Phase 3: UBER stub auto-completion (stub / dev only) ────────────────────
+  //
+  // In production, the real Uber Direct webhook fires PICKED_UP and DELIVERED
+  // transitions — this phase is NEVER reached in a live environment.
+  //
+  // For demo/testing purposes, when USE_SHIPPING_STUB=true we simulate the
+  // Uber driver:
+  //   3a. UBER_DIRECT READY → PICKED_UP  (after UBER_STUB_PICKUP_DELAY_MS from readyAt)
+  //   3b. UBER_DIRECT PICKED_UP → DELIVERED (after UBER_STUB_DELIVER_DELAY_MS from pickedUpAt)
+  //
+  // This lets you exercise the full customer-facing tracking page end-to-end
+  // without a real courier.
+
+  if (process.env.USE_SHIPPING_STUB === "true") {
+    // 3a — READY → PICKED_UP
+    const pickupCutoff = new Date(Date.now() - UBER_STUB_PICKUP_DELAY_MS);
+
+    const readyUberOrders = await prisma.deliveryOrder.findMany({
+      where: {
+        status: DeliveryOrderStatus.READY,
+        fulfillmentType: FulfillmentType.UBER_DIRECT,
+        readyAt: { lte: pickupCutoff },
+      },
+      select: { id: true },
+    });
+
+    for (const order of readyUberOrders) {
+      await prisma.deliveryOrder.update({
+        where: { id: order.id },
+        data: {
+          status: DeliveryOrderStatus.PICKED_UP,
+          pickedUpAt: new Date(),
+        },
+      });
+      console.log(
+        `[dispatch-sweep] Phase 3a (stub): order ${order.id} → PICKED_UP (Uber simulated pickup)`
+      );
+      stubPickedUp++;
+    }
+
+    // 3b — PICKED_UP → DELIVERED
+    const deliverCutoff = new Date(Date.now() - UBER_STUB_DELIVER_DELAY_MS);
+
+    const inTransitUberOrders = await prisma.deliveryOrder.findMany({
+      where: {
+        status: DeliveryOrderStatus.PICKED_UP,
+        fulfillmentType: FulfillmentType.UBER_DIRECT,
+        pickedUpAt: { lte: deliverCutoff },
+      },
+      select: { id: true },
+    });
+
+    for (const order of inTransitUberOrders) {
+      await prisma.deliveryOrder.update({
+        where: { id: order.id },
+        data: {
+          status: DeliveryOrderStatus.DELIVERED,
+          deliveredAt: new Date(),
+          // No real photo for the stub — set a sentinel value so the tracking
+          // page doesn't show a broken image.
+          dropoffPhotoUrl: null,
+        },
+      });
+      console.log(
+        `[dispatch-sweep] Phase 3b (stub): order ${order.id} → DELIVERED (Uber simulated delivery)`
+      );
+      stubDelivered++;
+    }
+  }
 
   console.log(
-    `[dispatch-sweep] Done — sweptToFallback=${sweptToFallback}, couriersAssigned=${couriersAssigned}`
+    `[dispatch-sweep] Done — sweptToFallback=${sweptToFallback}, couriersAssigned=${couriersAssigned}, stubPickedUp=${stubPickedUp}, stubDelivered=${stubDelivered}`
   );
 
-  return NextResponse.json({ sweptToFallback, couriersAssigned });
+  return NextResponse.json({ sweptToFallback, couriersAssigned, stubPickedUp, stubDelivered });
 }
+
