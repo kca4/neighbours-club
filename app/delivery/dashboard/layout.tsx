@@ -59,12 +59,13 @@ export default async function DashboardLayout({
         </div>
 
         <div className="flex flex-col items-center gap-3">
+          {/* TODO: replace href once the partner-onboarding flow is built */}
           <Link
-            href="/partner/apply"
+            href="/delivery"
             className="rounded-2xl bg-primary px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
             style={{ fontFamily: "var(--font-inter-tight)" }}
           >
-            Apply to be a partner
+            Back to delivery
           </Link>
           <Link
             href="/delivery"

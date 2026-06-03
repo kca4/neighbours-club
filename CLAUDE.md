@@ -9,7 +9,7 @@ This file is read by Claude Code at the start of every session. It contains perm
 **Neighbours Club** is a hyperlocal community platform launching in Kanata, Ottawa. It has multiple verticals under one platform:
 
 - **Group buy** (Steps 1–7 complete, verified) — members pool orders for tiered-discount pricing with pickup
-- **Delivery** (scaffolded, not yet implemented) — food/goods delivery with restaurant partners and driver app
+- **Delivery** (live, connected to main nav) — food/goods delivery with restaurant partners and driver app
 - **Neighbours Notes** (intelligence pipeline built) — editorial neighbourhood feed with automated ingest, Gemini summarization, and subscriber delivery
 - More verticals planned
 
@@ -115,6 +115,9 @@ Each step is a clean git commit:
 - `5026f66`–`aa98b81` — Daily digest cron (7am ET), Open Ottawa road events + dev applications sources
 - `2e332fe`–`1e495e7` — Business submission form + admin review, Local Business badge, Read more links
 - `a55f551` — Fix: migration checksum mismatch on DeliveryOrder index
+- `3f69904` — Delivery Phase 4: driver dispatch, Uber fallback stub, order tracking
+- `630e91b` — Fix: remove duplicate delivery webhook handler from group-buy route
+- `75e0bd2` — Delivery Phase 5: connect delivery vertical to main navigation (role-aware nav links)
 
 Steps 2 and 3 were folded into earlier commits.
 
@@ -127,18 +130,32 @@ Steps 2 and 3 were folded into earlier commits.
 - Verification scenarios passed: dashboard, supplier CRUD, deal CRUD, publish, member join with Stripe, leave flow, abandonment cleanup, deal closure (success and failed paths), capture, pickup marking, deal completion, access control, email flows (order authorized, deal closed success, deal closed failed, pickup reminder), capture failure recovery, password reset
 - Two scenarios deferred: Stripe test card capture-failure (test card behavior issue in Stripe API v2026-03-25.dahlia; recovery flow simulated manually instead)
 
-### Delivery — scaffolded, NOT implemented
-The codebase contains:
-- Schema models: Neighbourhood, DriverApplication, PartnerApplication, Restaurant, MenuItem, DeliveryOrder, NoteReaction, NotesSubscriber, NeighbourhoodWaitlist
-- 27 API routes — but **all return hardcoded mock data with TODO comments**
-- UI screens for customer onboarding, checkout, order tracking, driver app, kitchen dashboard, management dashboard, partner onboarding, notes feed, restaurant menu, partner spotlight — these reference mock data
-- New roles in enum: COURIER, RESTAURANT_OWNER
-- No Stripe Connect integration yet
-- No file upload integration yet
-- No role-based access guards on delivery routes (all TODO)
-- No seed data
+### Delivery — live, connected to main navigation
 
-**Treat delivery as a starting point, not a finished product. Real DB queries, auth checks, and integrations all need to be wired up before any flow works.**
+**What's built and working:**
+- Customer flow: `/delivery` restaurant listing → `/delivery/[slug]` menu browser → cart (CartProvider) → `/delivery/checkout` (Stripe, immediate capture) → `/delivery/checkout/confirmation` (live order tracker, polling)
+- Stripe webhook: `POST /api/webhooks/stripe` — `payment_intent.succeeded` → `PENDING_PAYMENT → PENDING` + sets `dispatchStartedAt`; `payment_intent.payment_failed` → `CANCELLED`
+- Kitchen dashboard: `/delivery/dashboard` — real-time order feed (react-query, 10s poll), accept/reject/cook/ready/cancel actions, Uber vs. internal fulfillment display, driver PIN display, dev controls in dev mode
+- Driver app: `/delivery/driver` — online/offline toggle, claim order, trip flow (`/delivery/driver/orders/[id]`)
+- Dispatch cron: sweeps `PENDING` orders, assigns internal drivers or escalates to Uber stub after 3-minute timeout
+- Route protection: dashboard and driver layouts call `auth()` and redirect unauthenticated users to `/signin`
+- Nav: "Order Food" (all users, active-highlighted under `/delivery`), "Restaurant Dashboard" (RESTAURANT_OWNER), "Driver" (COURIER)
+
+**Deferred — required before delivery goes live:**
+- Real Uber Direct API (currently a stub that simulates assignment after a delay)
+- Real object storage for pickup/dropoff photo proof (currently no upload endpoint)
+- GPS/live driver tracking on the customer tracker page
+- Cart persistence (currently localStorage via CartProvider — clears on sign-out)
+- Stripe Connect for driver payouts (currently no payout integration)
+- Partner onboarding flow (`/delivery/dashboard` empty-state CTA currently links back to `/delivery` as placeholder)
+
+**Prototype routes — candidates for future removal:**
+The following directories predate the delivery vertical and contain early mock UI. They are **not linked from any live navigation** and can be deleted once confirmed no longer needed:
+- `app/restaurants/` — early restaurant listing/detail prototype
+- `app/menu/` — early menu view prototype
+- `app/driver/` — early driver page prototype
+- `app/partner/` — early partner/kitchen/management dashboard prototypes
+- `app/checkout/` — early checkout prototype
 
 ### Neighbours Notes — intelligence pipeline built
 - **Data sources**: CBC Ottawa RSS, Ottawa Citizen RSS, Open Ottawa road events API, Open Ottawa dev applications API
@@ -195,7 +212,9 @@ When working on this project, follow these conventions:
 Required terminals when actively developing:
 
 - **Window 1**: `npm run dev` (Next.js dev server on http://localhost:3000)
-- **Window 2**: `stripe listen --forward-to localhost:3000/api/stripe/webhook` (forwards Stripe webhooks to local; the webhook signing secret it prints must match `STRIPE_WEBHOOK_SECRET` in `.env`)
+- **Window 2**: `stripe listen --forward-to localhost:3000/api/webhooks/stripe` (delivery webhook — handles `payment_intent.succeeded/failed` for `DeliveryOrder`; the signing secret it prints must match `STRIPE_WEBHOOK_SECRET` in `.env`)
+  - For group-buy webhook testing, change the forward URL to `localhost:3000/api/stripe/webhook` instead
+  - Two webhook routes exist: `/api/webhooks/stripe` (delivery) and `/api/stripe/webhook` (group buy). `stripe listen` can only forward to one at a time.
 - **Window 3** (optional): `npx prisma studio` (database admin at http://localhost:5555)
 
 Required `.env` variables:
