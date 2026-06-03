@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
-import { OrderStatus, DeliveryOrderStatus } from "@prisma/client";
+import { OrderStatus } from "@prisma/client";
 import type Stripe from "stripe";
 import { sendOrderAuthorized } from "@/lib/email";
 
@@ -245,34 +245,6 @@ export async function POST(req: NextRequest) {
             recoveryOrder.id,
           );
         }
-        break;
-      }
-
-      // Not a group-buy order or recovery — check if this is a delivery order payment.
-      // Delivery PaymentIntents use immediate capture, so payment_intent.succeeded is the
-      // first meaningful event. Transitioning PENDING_PAYMENT → PENDING also sets
-      // dispatchStartedAt, which the cron-sweep uses to measure the 3-minute driver
-      // timeout before escalating to Uber Direct.
-      const deliveryOrder = await prisma.deliveryOrder.findFirst({
-        where: { stripePaymentIntentId: pi.id },
-        select: { id: true, status: true },
-      });
-
-      if (deliveryOrder) {
-        if (deliveryOrder.status === DeliveryOrderStatus.PENDING_PAYMENT) {
-          await prisma.deliveryOrder.update({
-            where: { id: deliveryOrder.id },
-            data: {
-              status: DeliveryOrderStatus.PENDING,
-              dispatchStartedAt: new Date(),
-            },
-          });
-          console.log(
-            "[webhook] Delivery order confirmed PENDING_PAYMENT → PENDING:",
-            deliveryOrder.id,
-          );
-        }
-        // Any status beyond PENDING_PAYMENT means payment was already processed — idempotent.
         break;
       }
 
