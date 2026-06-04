@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { NoteCategory, NoteSourceType } from "@prisma/client";
 import { Shield, DollarSign, Clock } from "lucide-react";
+import { VerifyReadButton } from "./VerifyReadButton";
 
 const categoryStyles: Record<NoteCategory, string> = {
   Safety: "bg-red-100 text-red-700",
@@ -215,6 +216,9 @@ export default async function NoteDetailPage({
               )}
             </div>
           )}
+          {/* Verify-read CP button — placed after all content so it signals
+              the reader has reached the end. noteId only; no userId. */}
+          <VerifyReadButton noteId={note.id} />
         </article>
       </div>
     </main>

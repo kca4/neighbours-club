@@ -81,7 +81,7 @@ export async function createDeliveryOrder(input: CreateOrderInput): Promise<{
       tip: input.tip,
       tax: input.tax,
       total: input.total,
-      status: DeliveryOrderStatus.pending_payment,
+      status: DeliveryOrderStatus.PENDING_PAYMENT,
       deliveryAddress: input.deliveryAddress,
     },
   });

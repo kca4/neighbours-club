@@ -25,6 +25,45 @@ import {
   sendDealClosedFailed,
   sendOrderCaptureFailed,
 } from "@/lib/email";
+import { earnCP } from "@/lib/cp";
+import { CP_REWARDS } from "@/lib/cp/rewards";
+
+// ─── CP vesting helper ────────────────────────────────────────────────────────
+//
+// Called AFTER the capture $transaction commits, on BOTH the normal-capture
+// and isAlreadyCaptured paths. Never called on CAPTURE_FAILED, voided orders,
+// or Branch-B (threshold-not-met) orders.
+//
+// Idempotency: earnCP inserts a WalletLedger row keyed by
+//   @@unique([walletId, referenceId, reason]).
+// referenceId = `group_buy_reward:${orderId}` and reason = 'group_buy_reward'
+// are identical on every run for the same order. If the first cron run committed
+// CAPTURED then crashed before vesting, the next run re-enters via
+// isAlreadyCaptured, commits CAPTURED again (idempotent), then calls this helper
+// — which vests because the ledger row was never written. If vesting had already
+// succeeded, earnCP returns { deduped: true } and no second grant is made.
+// Either way the participant ends with exactly 1 × group_buy_reward CP.
+//
+// An unexpected earnCP error is logged but does NOT abort the cron or affect
+// the already-committed capture — the vest will self-heal on the next run.
+async function vestGroupBuyReward(userId: string, orderId: string): Promise<void> {
+  try {
+    const result = await earnCP({
+      userId,
+      amount: CP_REWARDS.group_buy_reward,
+      reason: "group_buy_reward",
+      referenceId: `group_buy_reward:${orderId}`,
+    });
+    if (result.deduped) {
+      // Already vested on a prior run — idempotent success, nothing to do.
+    }
+  } catch (err) {
+    // Unexpected error (not the P2002/deduped case, which earnCP handles
+    // internally). Log clearly; do not rethrow — capture already committed
+    // and the vest will self-heal on the next cron run.
+    console.error("[close-deals] vestGroupBuyReward unexpected error for order", orderId, err);
+  }
+}
 
 // Stripe error codes/messages that indicate the operation already happened.
 function isAlreadyCaptured(err: unknown): boolean {
@@ -96,7 +135,7 @@ export async function POST(req: NextRequest) {
           status: true,
           quantity: true,
           stripePaymentIntentId: true,
-          user: { select: { email: true, name: true } },
+          user: { select: { id: true, email: true, name: true } },
         },
       },
     },
@@ -178,6 +217,9 @@ export async function POST(req: NextRequest) {
               },
             }),
           ]);
+          // Vest CP after the capture transaction commits (Option A: separate tx).
+          // Self-heals on retry — see vestGroupBuyReward comment for full reasoning.
+          await vestGroupBuyReward(order.user.id, order.id);
           capturedCount++;
         } catch (err: unknown) {
           if (isAlreadyCaptured(err)) {
@@ -203,6 +245,10 @@ export async function POST(req: NextRequest) {
                 },
               }),
             ]);
+            // Vest CP on this path too — this is the self-healing path.
+            // If the cron crashed after committing CAPTURED but before vesting,
+            // the next run enters here. earnCP dedupes if already vested.
+            await vestGroupBuyReward(order.user.id, order.id);
             capturedCount++;
             continue;
           }

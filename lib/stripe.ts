@@ -17,7 +17,25 @@ export async function getOrCreateStripeCustomer(user: {
   stripeCustomerId: string | null;
 }): Promise<string> {
   if (user.stripeCustomerId) {
-    return user.stripeCustomerId;
+    // Verify the customer still exists in this Stripe environment.
+    // If the sandbox keys were rotated the stored ID will be stale —
+    // catch the "no such customer" error and fall through to create a new one.
+    try {
+      const existing = await stripe.customers.retrieve(user.stripeCustomerId);
+      if (!existing.deleted) {
+        return user.stripeCustomerId;
+      }
+    } catch (err: unknown) {
+      const stripeErr = err as { code?: string };
+      if (stripeErr?.code !== "resource_missing") throw err;
+      // resource_missing → stale ID; fall through to create a new customer
+    }
+
+    // Clear the invalid ID so we don't hit this path again for this user.
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { stripeCustomerId: null },
+    });
   }
 
   const customer = await stripe.customers.create({

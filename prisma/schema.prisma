@@ -38,16 +38,16 @@ enum OrderStatus {
 }
 
 enum DeliveryOrderStatus {
-  PENDING_PAYMENT      // Waiting on Stripe webhook
-  PENDING              // Paid, sitting in kitchen queue
-  ACCEPTED             // Claimed by internal driver
-  AWAITING_COURIER     // Rolled over to Uber API, searching (DO NOT COOK)
-  COURIER_ASSIGNED     // Uber driver locked in and en route (SAFE TO COOK)
-  COOKING              // Kitchen is actively preparing
-  READY                // Bagged and waiting for pickup
-  PICKED_UP            // In transit
-  DELIVERED            // Completed
-  CANCELLED            // Terminal failure state
+  PENDING_PAYMENT // Waiting on Stripe webhook
+  PENDING // Paid, sitting in kitchen queue
+  ACCEPTED // Claimed by internal driver
+  AWAITING_COURIER // Rolled over to Uber API, searching (DO NOT COOK)
+  COURIER_ASSIGNED // Uber driver locked in and en route (SAFE TO COOK)
+  COOKING // Kitchen is actively preparing
+  READY // Bagged and waiting for pickup
+  PICKED_UP // In transit
+  DELIVERED // Completed
+  CANCELLED // Terminal failure state
 }
 
 enum FulfillmentType {
@@ -106,47 +106,48 @@ enum NoteSourceType {
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model User {
-  id               String    @id @default(cuid())
-  email            String    @unique
+  id               String  @id @default(cuid())
+  email            String  @unique
   passwordHash     String
   name             String
   firstName        String?
   phone            String?
-  role             Role      @default(MEMBER)
-  stripeCustomerId String?   @unique
+  role             Role    @default(MEMBER)
+  stripeCustomerId String? @unique
 
   // Address for delivery orders
-  deliveryAddressLine1 String?
-  deliveryAddressLine2 String?
-  deliveryAddressCity  String?
+  deliveryAddressLine1  String?
+  deliveryAddressLine2  String?
+  deliveryAddressCity   String?
   deliveryAddressPostal String?
 
   // Neighbourhood membership
-  neighbourhoodId  String?
-  neighbourhood    Neighbourhood? @relation(fields: [neighbourhoodId], references: [id])
+  neighbourhoodId String?
+  neighbourhood   Neighbourhood? @relation(fields: [neighbourhoodId], references: [id])
 
   // Onboarding
   hasCompletedOnboarding Boolean @default(false)
 
   // Driver fields
-  isOnline         Boolean   @default(false)
-  restaurantId     String?   // if RESTAURANT_OWNER, their restaurant
+  isOnline     Boolean @default(false)
+  restaurantId String? // if RESTAURANT_OWNER, their restaurant
 
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  orders              Order[]
-  createdDeals        Deal[]           @relation("DealCreator")
-  resetTokens         PasswordResetToken[]
-  deliveryOrders      DeliveryOrder[]  @relation("CustomerOrders")
-  deliveryDriver      DeliveryDriver?
-  noteReactions       NoteReaction[]
-  notesSubscription   Subscriber?
-  partnerApplication  PartnerApplication?
-  savedNotes          SavedNote[]
+  orders                Order[]
+  createdDeals          Deal[]                  @relation("DealCreator")
+  resetTokens           PasswordResetToken[]
+  deliveryOrders        DeliveryOrder[]         @relation("CustomerOrders")
+  deliveryDriver        DeliveryDriver?
+  noteReactions         NoteReaction[]
+  notesSubscription     Subscriber?
+  partnerApplication    PartnerApplication?
+  savedNotes            SavedNote[]
   neighbourhoodWaitlist NeighbourhoodWaitlist[]
-  restaurant          Restaurant?      @relation("RestaurantOwner")
+  restaurant            Restaurant?             @relation("RestaurantOwner")
+  wallet                Wallet?
 
   @@index([neighbourhoodId])
 }
@@ -159,7 +160,7 @@ model PasswordResetToken {
   usedAt    DateTime?
   createdAt DateTime  @default(now())
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([userId])
@@ -168,97 +169,100 @@ model PasswordResetToken {
 // ─── Group-buy Models (existing) ──────────────────────────────────────────────
 
 model Supplier {
-  id          String   @id @default(cuid())
-  name        String
-  contactName String?
+  id           String   @id @default(cuid())
+  name         String
+  contactName  String?
   contactEmail String?
   contactPhone String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  deals       Deal[]
+  deals Deal[]
 }
 
 model Deal {
-  id                  String     @id @default(cuid())
-  title               String
-  slug                String     @unique
-  description         String     @db.Text
-  imageUrl            String?
+  id          String  @id @default(cuid())
+  title       String
+  slug        String  @unique
+  description String  @db.Text
+  imageUrl    String?
 
-  supplierId          String
-  supplier            Supplier   @relation(fields: [supplierId], references: [id])
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
 
-  createdById         String
-  createdBy           User       @relation("DealCreator", fields: [createdById], references: [id])
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
 
-  tiers               DealTier[]
-  minimumMembers      Int
-  maximumMembers      Int?
-  maxQuantityPerMember Int       @default(1)
+  createdById String
+  createdBy   User   @relation("DealCreator", fields: [createdById], references: [id])
 
-  opensAt             DateTime
-  closesAt            DateTime
+  tiers                DealTier[]
+  minimumMembers       Int
+  maximumMembers       Int?
+  maxQuantityPerMember Int        @default(1)
 
-  pickupLocation      String
-  pickupAddress       String
-  pickupWindowStart   DateTime
-  pickupWindowEnd     DateTime
-  pickupInstructions  String?    @db.Text
+  opensAt  DateTime
+  closesAt DateTime
 
-  status              DealStatus @default(DRAFT)
-  finalPrice          Decimal?   @db.Decimal(10, 2)
-  finalTierIndex      Int?
+  pickupLocation     String
+  pickupAddress      String
+  pickupWindowStart  DateTime
+  pickupWindowEnd    DateTime
+  pickupInstructions String?  @db.Text
+
+  status                 DealStatus @default(DRAFT)
+  finalPrice             Decimal?   @db.Decimal(10, 2)
+  finalTierIndex         Int?
   midpointReminderSentAt DateTime?
-  closingProcessedAt  DateTime?
+  closingProcessedAt     DateTime?
 
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  orders              Order[]
+  orders Order[]
 
   @@index([status, closesAt])
   @@index([slug])
 }
 
 model DealTier {
-  id              String   @id @default(cuid())
-  dealId          String
-  deal            Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  dealId String
+  deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
-  minMembers      Int
-  maxMembers      Int?
-  pricePerUnit    Decimal  @db.Decimal(10, 2)
-  tierOrder       Int
+  minMembers   Int
+  maxMembers   Int?
+  pricePerUnit Decimal @db.Decimal(10, 2)
+  tierOrder    Int
 
   @@unique([dealId, tierOrder])
   @@index([dealId])
 }
 
 model Order {
-  id                String      @id @default(cuid())
-  userId            String
-  user              User        @relation(fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
-  dealId            String
-  deal              Deal        @relation(fields: [dealId], references: [id])
+  dealId String
+  deal   Deal   @relation(fields: [dealId], references: [id])
 
-  quantity          Int
-  maxAuthorizedAmount Decimal   @db.Decimal(10, 2)
-  finalAmount       Decimal?    @db.Decimal(10, 2)
+  quantity            Int
+  maxAuthorizedAmount Decimal  @db.Decimal(10, 2)
+  finalAmount         Decimal? @db.Decimal(10, 2)
 
-  stripePaymentIntentId String? @unique
-  recoveryToken     String?     @unique
-  status            OrderStatus @default(PENDING_AUTHORIZATION)
+  stripePaymentIntentId String?     @unique
+  recoveryToken         String?     @unique
+  status                OrderStatus @default(PENDING_AUTHORIZATION)
 
-  pickedUpAt        DateTime?
-  pickedUpBy        String?
+  pickedUpAt           DateTime?
+  pickedUpBy           String?
   pickupReminderSentAt DateTime?
-  notes             String?     @db.Text
+  notes                String?   @db.Text
 
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, dealId])
   @@index([dealId, status])
@@ -268,17 +272,17 @@ model Order {
 // ─── Delivery / Restaurant Models ─────────────────────────────────────────────
 
 model Neighbourhood {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  slug        String   @unique
-  city        String   @default("Ottawa")
-  isActive    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  city      String   @default("Ottawa")
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  users         User[]
-  restaurants   Restaurant[]
-  waitlist      NeighbourhoodWaitlist[]
+  users       User[]
+  restaurants Restaurant[]
+  waitlist    NeighbourhoodWaitlist[]
 
   @@index([slug])
 }
@@ -307,80 +311,82 @@ model Restaurant {
   neighbourhood   Neighbourhood? @relation(fields: [neighbourhoodId], references: [id])
 
   // Owner link
-  ownerId         String?  @unique
-  owner           User?    @relation("RestaurantOwner", fields: [ownerId], references: [id])
+  ownerId String? @unique
+  owner   User?   @relation("RestaurantOwner", fields: [ownerId], references: [id])
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  menuItems       MenuItem[]
-  deliveryOrders  DeliveryOrder[]
+  menuItems      MenuItem[]
+  deliveryOrders DeliveryOrder[]
+  deals          Deal[]
+  notes          ProcessedNote[]
 
   @@index([slug])
   @@index([neighbourhoodId, isActive])
 }
 
 model MenuItem {
-  id           String  @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   name         String
   description  String?
-  price        Decimal @db.Decimal(10, 2)
+  price        Decimal    @db.Decimal(10, 2)
   category     String
   tags         String[]
   imageUrl     String?
   colorHex     String?
-  isAvailable  Boolean @default(true)
-  sortOrder    Int     @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isAvailable  Boolean    @default(true)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   @@index([restaurantId, category])
 }
 
 model DeliveryOrder {
-  id              String   @id @default(cuid())
-  userId          String
-  user            User     @relation("CustomerOrders", fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("CustomerOrders", fields: [userId], references: [id])
 
-  restaurantId    String
-  restaurant      Restaurant @relation(fields: [restaurantId], references: [id])
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 
-  driverId        String?
-  driver          DeliveryDriver? @relation("HistoricalDriverOrders", fields: [driverId], references: [id])
-  activeDriver    DeliveryDriver? @relation("ActiveDriverOrder")
+  driverId     String?
+  driver       DeliveryDriver? @relation("HistoricalDriverOrders", fields: [driverId], references: [id])
+  activeDriver DeliveryDriver? @relation("ActiveDriverOrder")
 
   // Items snapshot (JSON so prices are locked at order time)
-  items           Json
+  items Json
 
-  subtotal        Decimal  @db.Decimal(10, 2)
-  deliveryFee     Decimal  @db.Decimal(10, 2)
-  serviceFee      Decimal  @db.Decimal(10, 2)
-  tax             Decimal  @db.Decimal(10, 2)
-  tip             Decimal  @db.Decimal(10, 2)
-  tipPct          Int?
-  total           Decimal  @db.Decimal(10, 2)
+  subtotal    Decimal @db.Decimal(10, 2)
+  deliveryFee Decimal @db.Decimal(10, 2)
+  serviceFee  Decimal @db.Decimal(10, 2)
+  tax         Decimal @db.Decimal(10, 2)
+  tip         Decimal @db.Decimal(10, 2)
+  tipPct      Int?
+  total       Decimal @db.Decimal(10, 2)
 
-  status          DeliveryOrderStatus @default(PENDING_PAYMENT)
-  fulfillmentType FulfillmentType     @default(INTERNAL)
-  pickupPin       String?             // 4-digit verification code for Uber drivers
-  cancellationReason String?          // "Out of stock", "Kitchen slammed", etc.
-  needsAdminReview Boolean            @default(false) // true if cancelled after ACCEPTED
+  status             DeliveryOrderStatus @default(PENDING_PAYMENT)
+  fulfillmentType    FulfillmentType     @default(INTERNAL)
+  pickupPin          String? // 4-digit verification code for Uber drivers
+  cancellationReason String? // "Out of stock", "Kitchen slammed", etc.
+  needsAdminReview   Boolean             @default(false) // true if cancelled after ACCEPTED
 
   stripePaymentIntentId String? @unique
 
   // Address snapshot (JSON so user can change address later without affecting history)
   deliveryAddress Json
 
-  driverNote      String?  @db.Text
+  driverNote String? @db.Text
 
   // Courier job tracking
-  courierJobId        String?     // Uber Direct delivery ID (real) or stub jobId (simulated)
-  courierRequestedAt  DateTime?   // when createJob was called; simulated assignment delay measures from here
+  courierJobId       String? // Uber Direct delivery ID (real) or stub jobId (simulated)
+  courierRequestedAt DateTime? // when createJob was called; simulated assignment delay measures from here
 
   // Timing
-  dispatchStartedAt   DateTime?   // set when payment confirms (PENDING_PAYMENT → PENDING); Uber fallback timer measures from here
+  dispatchStartedAt   DateTime? // set when payment confirms (PENDING_PAYMENT → PENDING); Uber fallback timer measures from here
   estimatedDeliveryAt DateTime?
   acceptedAt          DateTime?
   cookingStartedAt    DateTime?
@@ -389,11 +395,11 @@ model DeliveryOrder {
   deliveredAt         DateTime?
 
   // Photo proof
-  pickupPhotoUrl   String?
-  dropoffPhotoUrl  String?
+  pickupPhotoUrl  String?
+  dropoffPhotoUrl String?
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([restaurantId, status])
@@ -407,7 +413,7 @@ model DeliveryDriver {
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   status        DriverStatus    @default(OFFLINE)
   vehicleType   VehicleType     @default(CAR)
-  activeOrderId String?         @unique  // one active delivery per driver
+  activeOrderId String?         @unique // one active delivery per driver
   activeOrder   DeliveryOrder?  @relation("ActiveDriverOrder", fields: [activeOrderId], references: [id])
   deliveries    DeliveryOrder[] @relation("HistoricalDriverOrders")
   createdAt     DateTime        @default(now())
@@ -421,7 +427,7 @@ model NoteReaction {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   issueId   String
-  reaction  String   // "love" | "fire" | "thanks" | "cozy"
+  reaction  String // "love" | "fire" | "thanks" | "cozy"
   createdAt DateTime @default(now())
 
   @@unique([userId, issueId])
@@ -429,20 +435,20 @@ model NoteReaction {
 }
 
 model Subscriber {
-  id                 String    @id @default(cuid())
-  email              String    @unique
-  name               String?
-  confirmedAt        DateTime?
-  confirmationToken  String?   @unique
-  unsubscribeToken   String    @unique
-  digestEnabled      Boolean   @default(true)
-  urgentEnabled      Boolean   @default(true)
-  userId             String?   @unique
-  user               User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  subscribedAt       DateTime  @default(now())
-  confirmedIp        String?
-  source             String
-  unsubscribedAt     DateTime?
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String?
+  confirmedAt       DateTime?
+  confirmationToken String?   @unique
+  unsubscribeToken  String    @unique
+  digestEnabled     Boolean   @default(true)
+  urgentEnabled     Boolean   @default(true)
+  userId            String?   @unique
+  user              User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  subscribedAt      DateTime  @default(now())
+  confirmedIp       String?
+  source            String
+  unsubscribedAt    DateTime?
 }
 
 model SavedNote {
@@ -458,50 +464,50 @@ model SavedNote {
 // ─── Partner Onboarding ───────────────────────────────────────────────────────
 
 model PartnerApplication {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  currentStep     Int      @default(1)
-  isSubmitted     Boolean  @default(false)
-  overallStatus   PartnerApplicationStatus @default(in_progress)
+  currentStep   Int                      @default(1)
+  isSubmitted   Boolean                  @default(false)
+  overallStatus PartnerApplicationStatus @default(in_progress)
 
   // Step 1 — About the restaurant
-  restaurantName  String?
-  cuisine         String?
-  address         String?
-  phone           String?
-  email           String?
+  restaurantName String?
+  cuisine        String?
+  address        String?
+  phone          String?
+  email          String?
 
   // Step 2 — Owner info
-  ownerName       String?
-  businessNumber  String?
+  ownerName      String?
+  businessNumber String?
 
   // Step 3 — Hours
-  hours           Json?
+  hours Json?
 
   // Step 4 — Menu
-  menuMethod      String?   // "bulk" | "manual"
-  menuItems       Json?
-  menuBulkUrl     String?   // Vercel Blob URL for uploaded PDF/image
-  menuBulkText    String?   @db.Text
+  menuMethod   String? // "bulk" | "manual"
+  menuItems    Json?
+  menuBulkUrl  String? // Vercel Blob URL for uploaded PDF/image
+  menuBulkText String? @db.Text
 
   // Step 5 — Photos
-  photosSkipped   Boolean   @default(false)
-  logoUrl         String?
-  heroPhotoUrl    String?
+  photosSkipped Boolean @default(false)
+  logoUrl       String?
+  heroPhotoUrl  String?
 
   // Step 6 — Stripe Connect
   stripeConnectId String?
 
   // Step 7 — Call scheduling
-  callSlot        String?
+  callSlot String?
 
   // Neighbourhood
   neighbourhoodId String?
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([overallStatus])
 }
@@ -509,13 +515,13 @@ model PartnerApplication {
 // ─── Neighbourhood Waitlist ───────────────────────────────────────────────────
 
 model NeighbourhoodWaitlist {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   userId          String?
-  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   email           String
   neighbourhoodId String
   neighbourhood   Neighbourhood @relation(fields: [neighbourhoodId], references: [id])
-  createdAt       DateTime @default(now())
+  createdAt       DateTime      @default(now())
 
   @@unique([email, neighbourhoodId])
   @@index([neighbourhoodId])
@@ -616,6 +622,38 @@ model ProcessedNote {
   businessProfileId   String?
   businessProfile     BusinessProfile? @relation(fields: [businessProfileId], references: [id])
 
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+
   @@index([businessProfileId])
   @@map("processed_notes")
+}
+
+// ─── Community Points (CP) ────────────────────────────────────────────────────
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balanceCP Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledger WalletLedger[]
+}
+
+model WalletLedger {
+  id          String   @id @default(cuid())
+  walletId    String
+  amount      Int      // positive = earn, negative = burn
+  reason      String
+  referenceId String
+  createdAt   DateTime @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@unique([walletId, referenceId, reason])
+  @@index([walletId])
+  @@index([walletId, createdAt])
+  @@map("wallet_ledger")
 }

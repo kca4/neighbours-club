@@ -533,6 +533,30 @@ export default function OrderCard({
           </div>
         )}
 
+        {/* Internal driver PIN — shown for ACCEPTED / COOKING / READY when an
+            internal driver has claimed the order and a PIN has been generated */}
+        {!isUber &&
+          ["ACCEPTED", "COOKING", "READY"].includes(order.status) &&
+          order.pickupPin && (
+            <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5">
+              <CheckCircle
+                size={14}
+                strokeWidth={2}
+                className="shrink-0 text-primary"
+                aria-hidden
+              />
+              <p
+                className="text-xs font-medium text-teal-800"
+                style={{ fontFamily: "var(--font-inter-tight)" }}
+              >
+                Driver PIN:{" "}
+                <span className="text-sm font-bold tracking-widest">
+                  {order.pickupPin}
+                </span>
+              </p>
+            </div>
+          )}
+
         {isCourierAssigned && (
           <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5">
             <CheckCircle
