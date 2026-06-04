@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
+import { getWalletBalance } from "@/lib/cp/wallet-view";
 import HeaderNav from "./HeaderNav";
 
 export default async function Header() {
@@ -8,6 +9,15 @@ export default async function Header() {
   const isAdmin = role === "ADMIN";
   const isRestaurantOwner = role === "RESTAURANT_OWNER";
   const isCourier = role === "COURIER";
+
+  // Fetch balance server-side using the already-resolved userId.
+  // Returns 0 if the user has no wallet yet.
+  // Badge re-renders fresh on every navigation (server component).
+  // After an earn action, callers can call router.refresh() to re-render
+  // server components and show the updated balance immediately.
+  const balanceCP = session?.user?.id
+    ? await getWalletBalance(session.user.id)
+    : undefined;
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-foreground/8 bg-background/95 backdrop-blur">
@@ -40,6 +50,7 @@ export default async function Header() {
           isAdmin={isAdmin}
           isRestaurantOwner={isRestaurantOwner}
           isCourier={isCourier}
+          balanceCP={balanceCP}
         />
       </div>
     </header>

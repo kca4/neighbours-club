@@ -10,6 +10,7 @@ interface HeaderNavProps {
   isAdmin: boolean;
   isRestaurantOwner: boolean;
   isCourier: boolean;
+  balanceCP?: number;
 }
 
 export default function HeaderNav({
@@ -17,6 +18,7 @@ export default function HeaderNav({
   isAdmin,
   isRestaurantOwner,
   isCourier,
+  balanceCP,
 }: HeaderNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -72,6 +74,19 @@ export default function HeaderNav({
             <Link href="/account" className={desktopLink}>
               Account
             </Link>
+            {balanceCP !== undefined && (
+              <Link
+                href="/wallet"
+                className="min-h-[44px] flex items-center gap-1.5 px-3 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                aria-label={`Community Points balance: ${balanceCP.toLocaleString()} CP`}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <text x="12" y="16" textAnchor="middle" fontSize="12" fill="white" fontWeight="bold">C</text>
+                </svg>
+                {balanceCP.toLocaleString()} CP
+              </Link>
+            )}
             {isRestaurantOwner && (
               <Link
                 href="/delivery/dashboard"
@@ -170,6 +185,20 @@ export default function HeaderNav({
                 <Link href="/account" onClick={close} className={mobileLink}>
                   Account
                 </Link>
+                {balanceCP !== undefined && (
+                  <Link
+                    href="/wallet"
+                    onClick={close}
+                    className="min-h-[48px] flex items-center gap-1.5 px-2 text-sm font-medium text-primary hover:text-primary/80 border-b border-foreground/5 transition-colors"
+                    aria-label={`Community Points balance: ${balanceCP.toLocaleString()} CP`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" />
+                      <text x="12" y="16" textAnchor="middle" fontSize="12" fill="white" fontWeight="bold">C</text>
+                    </svg>
+                    {balanceCP.toLocaleString()} CP
+                  </Link>
+                )}
                 {isRestaurantOwner && (
                   <Link
                     href="/delivery/dashboard"
