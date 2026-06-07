@@ -7,17 +7,19 @@
  *  - userId is derived from the authenticated session via auth(). It is NEVER
  *    accepted as a parameter — server action arguments are client-controlled,
  *    so accepting userId would allow any caller to mint CP into any wallet.
- *  - CP is only minted for notes that exist AND have status APPROVED. Minting
- *    for DRAFT or REJECTED noteIds is blocked, closing the point-farming hole.
- *  - Idempotency is enforced inside earnCP via the @@unique constraint on
- *    (walletId, referenceId, reason). A duplicate call returns alreadyClaimed
- *    without touching the balance.
+ *  - CP is only minted for notes that exist AND have status APPROVED/PUBLISHED.
+ *    Minting for DRAFT or REJECTED noteIds is blocked.
+ *  - Idempotency is enforced inside earnVerifiedReadCP via the @@unique
+ *    constraint on (walletId, referenceId, reason). A duplicate call returns
+ *    alreadyClaimed without touching the balance.
+ *  - The amount awarded is determined by the diminishing content-faucet curve
+ *    and caps from EconParam — not a flat constant. A 6th+ daily read earns
+ *    0 CP but still succeeds and is recorded.
  */
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { earnCP } from "@/lib/cp";
-import { CP_REWARDS } from "@/lib/cp/rewards";
+import { earnVerifiedReadCP } from "@/lib/cp";
 
 // ─── Result type ──────────────────────────────────────────────────────────────
 
@@ -47,29 +49,19 @@ export async function verifyNote(noteId: string): Promise<VerifyNoteResult> {
   }
 
   if (!["APPROVED", "PUBLISHED"].includes(note.status)) {
-    // Blocks DRAFT — neither earns points. Matches the exact filter the
-    // public feed and note page use, so this gate stays in sync with
-    // what users can actually read.
+    // Blocks DRAFT — neither earns points.
     return { success: false, error: "Note not available" };
   }
 
-  // ── 3. Stable, reason-scoped referenceId ────────────────────────────────────
-  // Prefixed with the reason so the same userId:noteId pair can never collide
-  // with a future reward type that legitimately uses the same two identifiers.
-  const referenceId = `verified_read:${userId}:${noteId}`;
-
-  // ── 4. Mint CP ───────────────────────────────────────────────────────────────
+  // ── 3. Award CP via the diminishing content-faucet ──────────────────────────
+  // referenceId is built internally inside earnVerifiedReadCP as
+  // `verified_read:{userId}:{noteId}` — the action does not construct it.
   try {
-    const result = await earnCP({
-      userId,
-      amount: CP_REWARDS.verified_read,
-      reason: "verified_read",
-      referenceId,
-    });
+    const result = await earnVerifiedReadCP({ userId, noteId });
 
-    // Duplicate call — the (walletId, referenceId, reason) row already exists.
-    // earnCP returns deduped: true and leaves the balance unchanged.
     if (result.deduped) {
+      // Same note verified twice by the same user — the original ledger row
+      // already exists; balance is unchanged.
       return {
         success: true,
         alreadyClaimed: true,
@@ -79,9 +71,9 @@ export async function verifyNote(noteId: string): Promise<VerifyNoteResult> {
 
     return { success: true, newBalance: result.newBalance };
   } catch (e) {
-    // InsufficientBalanceError cannot occur on an earn; any error here is
-    // unexpected. Log server-side; return a generic message to the client so
-    // internal details are not exposed.
+    // InsufficientBalanceError cannot occur on an earn. Any error here is
+    // unexpected. Log server-side; return a generic message to avoid leaking
+    // internal details.
     console.error("[verifyNote] unexpected error for userId=%s noteId=%s", userId, noteId, e);
     return { success: false, error: "Something went wrong" };
   }

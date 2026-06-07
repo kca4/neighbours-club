@@ -12,7 +12,8 @@
     "seed:restaurants": "tsx scripts/seed-restaurants.ts",
     "dispatch:sweep": "curl -s -H \"Authorization: Bearer $CRON_SECRET\" http://localhost:3000/api/dispatch/cron-sweep | cat",
     "verify:cp": "NODE_OPTIONS=\"--conditions=react-server\" tsx scripts/verify-cp.ts",
-    "seed:test-note": "tsx prisma/seeds/test-note.ts"
+    "seed:test-note": "tsx prisma/seeds/test-note.ts",
+    "test": "vitest run"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -46,6 +47,7 @@
     "prisma": "^5.22.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.8"
   }
 }
