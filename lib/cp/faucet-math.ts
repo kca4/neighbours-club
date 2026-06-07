@@ -136,3 +136,34 @@ export function clampToCap(proposed: number, alreadyEarned: number, cap: number)
   const remaining = Math.max(0, cap - alreadyEarned)
   return Math.min(proposed, remaining)
 }
+
+// ─── Φ (phi) inflation metric ─────────────────────────────────────────────────
+
+/**
+ * Default rolling window length for Φ measurement.
+ *
+ * This is an OPEN DECISION (Spec §13 #2). The value 7 is the Phase 1 pilot
+ * starting point. When live Φ history informs a better window, promote this
+ * to an EconParam key in one commit. Do NOT add the key speculatively before
+ * observing real data.
+ */
+export const PHI_DEFAULT_WINDOW_DAYS = 7
+
+/**
+ * Φ = Σ emitted / Σ burned — the CP inflation metric from Spec §7.
+ *
+ * Pure function: no DB calls, no side effects, no globals mutated.
+ * The DB-facing measurePhi (lib/cp/phi.ts) calls this after aggregating
+ * the ledger sums — computation and I/O are deliberately separated.
+ *
+ * Return values:
+ *   null when burned === 0  — Φ is mathematically undefined (no burns yet).
+ *                             Never returns Infinity or throws.
+ *   0    when emitted === 0 — fully deflationary window; valid, expected in
+ *                             early launch before commerce faucets fire.
+ *   >0   normal case        — healthy band is [phi_target_low, phi_target_high].
+ */
+export function computePhi(emitted: number, burned: number): number | null {
+  if (burned === 0) return null
+  return emitted / burned
+}

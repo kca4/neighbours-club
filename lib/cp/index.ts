@@ -23,6 +23,8 @@ export {
 } from './core'
 
 export { earnVerifiedReadCP } from './content-faucet'
+export { measurePhi } from './phi'
+export type { PhiMeasurement } from './phi'
 
 export type {
   CPReason,
