@@ -339,6 +339,9 @@ model MenuItem {
   colorHex     String?
   isAvailable  Boolean    @default(true)
   sortOrder    Int        @default(0)
+  // Secret menu fields — hidden from regular listing, CP required to unlock
+  isSecret     Boolean    @default(false)
+  cpCost       Int?       // CP required to redeem; null = not a secret item
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -373,6 +376,19 @@ model DeliveryOrder {
   pickupPin          String? // 4-digit verification code for Uber drivers
   cancellationReason String? // "Out of stock", "Kitchen slammed", etc.
   needsAdminReview   Boolean             @default(false) // true if cancelled after ACCEPTED
+
+  // CP delivery-fee waiver
+  cpWaiverApplied  Boolean  @default(false)    // user chose to waive the fee at checkout
+  cpWaivedAmount   Decimal? @db.Decimal(10, 2) // dollar value waived (deliveryFee + its HST portion)
+  cpWaiverSettled  Boolean  @default(false)    // true once burnCP has succeeded for this order
+  cpWaiverCost     Int?                         // CP units burned (e.g. 1500), recorded at creation
+
+  // CP secret-menu redemption
+  cpRedemptionSettled Boolean @default(false)  // true once burnCP has succeeded for the secret item
+  // Concurrency guard: set to "{orderId}:{itemId}" when PENDING_PAYMENT draft is created,
+  // cleared to null on terminal states. NULLs don't collide in Postgres unique indexes,
+  // so only one live draft per (user × secret item) can exist at a time.
+  redemptionKey    String?  @unique
 
   stripePaymentIntentId String? @unique
 
@@ -627,6 +643,17 @@ model ProcessedNote {
 
   @@index([businessProfileId])
   @@map("processed_notes")
+}
+
+// ─── Economy Config ───────────────────────────────────────────────────────────
+
+model EconParam {
+  key         String   @id
+  value       String
+  description String
+  updatedAt   DateTime @updatedAt
+
+  @@map("econ_params")
 }
 
 // ─── Community Points (CP) ────────────────────────────────────────────────────
