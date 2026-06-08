@@ -121,6 +121,12 @@ export async function approveNote(id: string): Promise<ApproveResult> {
 export async function rejectNote(id: string) {
   const session = await auth();
   if (session?.user?.role !== "ADMIN") throw new Error("Forbidden");
-  await prisma.processedNote.delete({ where: { id } });
+  // Soft-delete: set REJECTED, keep the row for audit trail.
+  // The public feed filters for APPROVED/PUBLISHED only, so REJECTED notes are
+  // invisible to all public surfaces without any additional query changes.
+  await prisma.processedNote.update({
+    where: { id },
+    data: { status: "REJECTED" },
+  });
   revalidatePath("/admin/notes");
 }
