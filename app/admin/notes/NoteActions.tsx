@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { NoteStatus } from "@prisma/client";
-import { approveNote, rejectNote } from "./actions";
+import { approveNote, rejectNote, retractNoteStandalone } from "./actions";
 
 export default function NoteActions({
   id,
@@ -16,8 +16,11 @@ export default function NoteActions({
   threshold: number;
 }) {
   const [blockMessage, setBlockMessage] = useState<string | null>(null);
+  const [retractReason, setRetractReason] = useState("");
+  const [showRetract, setShowRetract] = useState(false);
   const [approvePending, startApprove] = useTransition();
   const [rejectPending, startReject] = useTransition();
+  const [retractPending, startRetract] = useTransition();
 
   const isAlreadyApproved = status === "APPROVED";
   const isAlreadyBlocked  = status === "BLOCKED_NEEDS_FRAMEWORK";
@@ -80,6 +83,49 @@ export default function NoteActions({
       {/* Inline error when the server gate fires (soft block or unexpected HIGH) */}
       {blockMessage && (
         <p className="max-w-xs text-xs text-red-600">{blockMessage}</p>
+      )}
+
+      {/* ── Standalone retract (APPROVED/CORRECTED notes only) ── */}
+      {(status === "APPROVED" || status === "CORRECTED") && (
+        <div className="mt-1">
+          {!showRetract ? (
+            <button
+              onClick={() => setShowRetract(true)}
+              className="text-xs underline underline-offset-1 text-foreground/40 hover:text-foreground/70"
+            >
+              Retract
+            </button>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <textarea
+                value={retractReason}
+                onChange={(e) => setRetractReason(e.target.value)}
+                placeholder="Reason for retraction (required)…"
+                rows={2}
+                className="w-full rounded border border-gray-200 px-2 py-1 text-xs focus:outline-none"
+              />
+              <div className="flex gap-1">
+                <button
+                  disabled={retractPending || !retractReason.trim()}
+                  onClick={() =>
+                    startRetract(() =>
+                      retractNoteStandalone(id, retractReason)
+                    )
+                  }
+                  className="rounded-lg border border-orange-200 px-3 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-40"
+                >
+                  {retractPending ? "…" : "Confirm retract"}
+                </button>
+                <button
+                  onClick={() => { setShowRetract(false); setRetractReason(""); }}
+                  className="text-xs text-foreground/40"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

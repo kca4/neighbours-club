@@ -82,6 +82,11 @@ export default async function NoteDetailPage({
           isPublic: true,
         },
       },
+      corrections: {
+        where: { reply: { not: null } },
+        select: { id: true, reply: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
@@ -217,6 +222,23 @@ export default async function NoteDetailPage({
               )}
             </div>
           )}
+          {/* Right-of-reply callouts — shown when a correction has an attached reply */}
+          {note.corrections.length > 0 && (
+            <div className="mb-6 space-y-3">
+              {note.corrections.map((c) => (
+                <div
+                  key={c.id}
+                  className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3"
+                >
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-blue-600">
+                    Right of reply
+                  </p>
+                  <p className="text-sm leading-relaxed text-blue-900">{c.reply}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Verify-read CP button — placed after all content so it signals
               the reader has reached the end. noteId only; no userId. */}
           <VerifyReadButton noteId={note.id} />

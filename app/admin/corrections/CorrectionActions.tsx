@@ -7,21 +7,28 @@ import {
   resolveCorrection,
   rejectCorrection,
   attachReply,
+  unpublishNote,
+  retractNoteFromCorrection,
 } from "./actions";
 
 export function CorrectionActions({
   id,
   status,
   existingReply,
+  noteStatus,
 }: {
   id: string;
   status: CorrectionStatus;
   existingReply: string | null;
+  noteStatus: string;
 }) {
   const [resolutionText, setResolutionText] = useState("");
   const [replyText, setReplyText] = useState(existingReply ?? "");
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  const canUnpublish = ["APPROVED", "PUBLISHED"].includes(noteStatus);
+  const canRetract   = ["APPROVED", "PUBLISHED", "CORRECTED"].includes(noteStatus);
 
   if (status === "RESOLVED" || status === "REJECTED") {
     return (
@@ -74,6 +81,26 @@ export function CorrectionActions({
           </button>
         </div>
       </div>
+
+      {/* ── Note-level actions: unpublish / retract ─── */}
+      {canUnpublish && (
+        <button
+          disabled={pending}
+          onClick={() => startTransition(() => unpublishNote(id))}
+          className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-40"
+        >
+          Unpublish (provisional)
+        </button>
+      )}
+      {canRetract && (
+        <button
+          disabled={pending}
+          onClick={() => startTransition(() => retractNoteFromCorrection(id))}
+          className="rounded-lg border border-orange-300 px-3 py-1.5 text-xs font-medium text-orange-800 hover:bg-orange-50 disabled:opacity-40"
+        >
+          Retract note
+        </button>
+      )}
 
       {/* ── Right-of-reply ─── */}
       {!showReplyBox ? (

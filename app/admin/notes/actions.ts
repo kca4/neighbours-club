@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { sendUrgentNote } from "@/lib/email";
 import { getEconParam } from "@/lib/cp/econ-params";
 import { checkPublishGate } from "@/lib/notes-publish-gate";
+import { retractNoteInTx } from "@/lib/notes-retract";
 
 // ─── Result type ──────────────────────────────────────────────────────────────
 
@@ -114,6 +115,40 @@ export async function approveNote(id: string): Promise<ApproveResult> {
 
   revalidatePath("/admin/notes");
   return { blocked: false };
+}
+
+// ─── retractNoteStandalone ────────────────────────────────────────────────────
+
+/**
+ * Standalone retraction — admin has found an error independently (no correction
+ * request required). Writes a NoteVersion snapshot and sets status to RETRACTED.
+ *
+ * Available for APPROVED or PUBLISHED notes. Status DRAFT/BLOCKED notes are
+ * rejected (they were never public, so "retraction" is meaningless).
+ *
+ * NO CP clawback — structural guarantee via lib/notes-retract.ts which has
+ * no CP imports.
+ */
+export async function retractNoteStandalone(noteId: string, changeReason: string) {
+  const session = await auth();
+  if (session?.user?.role !== "ADMIN") throw new Error("Forbidden");
+  if (!changeReason.trim()) throw new Error("changeReason is required for retraction.");
+
+  const note = await prisma.processedNote.findUniqueOrThrow({ where: { id: noteId } });
+  if (!["APPROVED", "PUBLISHED", "CORRECTED"].includes(note.status)) {
+    throw new Error(`Cannot retract a note with status ${note.status}.`);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await retractNoteInTx(
+      tx,
+      noteId,
+      session.user?.email ?? "admin",
+      changeReason.trim(),
+    );
+  });
+
+  revalidatePath("/admin/notes");
 }
 
 // ─── rejectNote ───────────────────────────────────────────────────────────────
