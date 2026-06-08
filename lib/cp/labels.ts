@@ -10,10 +10,11 @@ export const CP_REASON_LABELS: Record<string, string> = {
   verified_read:      'Read a local note',
   group_buy_reward:   'Group buy reward',
   tier_bridge:        'Tier bridge bonus',
-  delivery_waiver:    'Delivery fee waiver',
+  delivery_fee_waiver: 'Delivery fee waiver',
   signup_bonus:       'Welcome bonus',
   secret_menu_redeem: 'Secret menu unlock',
   donation:           'Community donation',
+  manual_grant:       'Manual grant',
 }
 
 /**

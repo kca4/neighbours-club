@@ -11,11 +11,12 @@
 export type CPReason =
   | 'verified_read'       // member read/engaged with a Note
   | 'tier_bridge'         // member's order pushed a group-buy to the next tier
-  | 'delivery_waiver'     // delivery-fee waiver redeemed via CP
+  | 'delivery_fee_waiver' // delivery fee waived by burning CP at checkout
   | 'group_buy_reward'    // reward issued at group-buy settlement
   | 'signup_bonus'        // one-time welcome grant
   | 'secret_menu_redeem'  // CP burned to unlock a restaurant secret item
   | 'donation'            // member donated CP to a community fund
+  | 'manual_grant'        // dev/admin one-off grant (never used in production flows)
 
 // ─── Result types ─────────────────────────────────────────────────────────────
 

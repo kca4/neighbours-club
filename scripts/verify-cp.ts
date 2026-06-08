@@ -108,7 +108,7 @@ async function testOverdraft(): Promise<void> {
     await burnCP({
       userId,
       amount: 100,   // more than the 40 available
-      reason: 'delivery_waiver',
+      reason: 'delivery_fee_waiver',
       referenceId: 'over-burn-001',
     })
   } catch (e) {
@@ -151,7 +151,7 @@ async function testHappyPath(): Promise<void> {
   const burn = await burnCP({
     userId,
     amount: 30,
-    reason: 'delivery_waiver',
+    reason: 'delivery_fee_waiver',
     referenceId: 'happy-burn-001',
   })
   assert(!burn.deduped && burn.newBalance === 70, `burn 30 → newBalance=70 (got ${JSON.stringify(burn)})`)
@@ -180,7 +180,7 @@ async function testInputValidation(): Promise<void> {
 
     threw = false
     try {
-      await burnCP({ userId, amount: bad, reason: 'delivery_waiver', referenceId: 'v2' })
+      await burnCP({ userId, amount: bad, reason: 'delivery_fee_waiver', referenceId: 'v2' })
     } catch { threw = true }
     assert(threw, `burnCP(${bad}) throws before any DB work`)
   }
