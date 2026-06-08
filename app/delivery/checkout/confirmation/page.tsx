@@ -508,6 +508,7 @@ export default function ConfirmationPage() {
             {[
               { label: "Subtotal", value: order?.subtotal ?? 0 },
               { label: "Delivery fee", value: order?.deliveryFee ?? 0 },
+              { label: "Service fee (10%)", value: order?.serviceFee ?? 0 },
               { label: "Tax", value: order?.tax ?? 0 },
               { label: "Tip", value: order?.tip ?? 0 },
             ].map(({ label, value }) => (

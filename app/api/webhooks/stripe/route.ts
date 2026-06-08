@@ -9,6 +9,9 @@
  *      into your .env file as STRIPE_WEBHOOK_SECRET
  *   5. The CLI will forward all Stripe events to this endpoint.
  *
+ * When stripe listen is unavailable locally, use the dev-only trigger instead:
+ *   POST /api/dev/settle-delivery-payment  { "orderId": "<id>" }
+ *
  * In production, register https://yoursite.com/api/webhooks/stripe as a
  * webhook endpoint in the Stripe Dashboard and copy the signing secret there.
  */
@@ -17,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { DeliveryOrderStatus } from "@prisma/client";
+import { settleDeliveryPayment } from "@/lib/delivery/settlement";
 import type Stripe from "stripe";
 
 // Disable Next.js body parsing — Stripe signature verification requires the
@@ -54,9 +58,11 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      // Validate the PI on this event matches what we stored on the order.
+      // This guards against a spoofed or mismatched event triggering settlement.
       const order = await prisma.deliveryOrder.findFirst({
         where: { id: orderId, stripePaymentIntentId: pi.id },
-        select: { id: true, status: true },
+        select: { id: true },
       });
 
       if (!order) {
@@ -64,19 +70,9 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      if (order.status === DeliveryOrderStatus.PENDING_PAYMENT) {
-        await prisma.deliveryOrder.update({
-          where: { id: order.id },
-          data: {
-            status: DeliveryOrderStatus.PENDING,
-            dispatchStartedAt: new Date(),
-          },
-        });
-        console.log(`[delivery-webhook] Order ${orderId} payment confirmed`);
-      } else {
-        // Already transitioned — idempotent, do nothing
-        console.log(`[delivery-webhook] Order ${orderId} already in status: ${order.status}`);
-      }
+      // Delegate to the shared settlement function — the same code path the
+      // dev trigger calls. Status transition + CP waiver burn (if applicable).
+      await settleDeliveryPayment(order.id);
       break;
     }
 

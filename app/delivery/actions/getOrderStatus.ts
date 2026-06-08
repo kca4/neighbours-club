@@ -9,6 +9,7 @@ export interface DeliveryOrderSummary {
   total: number;
   subtotal: number;
   deliveryFee: number;
+  serviceFee: number;
   tip: number;
   tax: number;
   items: unknown;
@@ -38,6 +39,7 @@ export async function getDeliveryOrderStatus(
       total: true,
       subtotal: true,
       deliveryFee: true,
+      serviceFee: true,
       tip: true,
       tax: true,
       items: true,
@@ -63,6 +65,7 @@ export async function getDeliveryOrderStatus(
     total: Number(order.total),
     subtotal: Number(order.subtotal),
     deliveryFee: Number(order.deliveryFee),
+    serviceFee: Number(order.serviceFee),
     tip: Number(order.tip),
     tax: Number(order.tax),
     items: order.items,

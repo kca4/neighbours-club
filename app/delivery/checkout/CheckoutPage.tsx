@@ -8,16 +8,11 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useCart } from "../CartProvider";
 import { createDeliveryOrder } from "../actions/createOrder";
+import { DELIVERY_FEE, WAIVER_COST_CP, computeFees, computeWaiverSavings } from "@/lib/delivery/fees";
 
 // ─── Stripe init ──────────────────────────────────────────────────────────────
 // Singleton — loadStripe is called once outside the component tree.
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const DELIVERY_FEE = 4.99;
-const SERVICE_FEE_RATE = 0.1;
-const HST_RATE = 0.13;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -188,7 +183,11 @@ function PaymentForm({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function CheckoutPage() {
+export default function CheckoutPage({
+  initialWalletBalance,
+}: {
+  initialWalletBalance: number;
+}) {
   const router = useRouter();
   const { state, subtotal } = useCart();
 
@@ -197,6 +196,7 @@ export default function CheckoutPage() {
   const [instructions, setInstructions] = useState("");
   const [tipMode, setTipMode] = useState<TipMode>("18");
   const [customTip, setCustomTip] = useState("");
+  const [waiverEnabled, setWaiverEnabled] = useState(false);
 
   // Phase 2 state — set after createDeliveryOrder succeeds
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -214,14 +214,21 @@ export default function CheckoutPage() {
   if (state.items.length === 0) return null;
 
   // ── Totals ──────────────────────────────────────────────────────────────────
-  const serviceFee = subtotal * SERVICE_FEE_RATE;
+  // computeFees mirrors the server-side calculation in createOrder.ts so the
+  // displayed breakdown always matches what Stripe will charge.
   const tipAmount =
     tipMode === "custom"
       ? Math.max(0, parseFloat(customTip) || 0)
       : subtotal * (parseInt(tipMode, 10) / 100);
-  const taxBase = subtotal + DELIVERY_FEE + serviceFee;
-  const tax = taxBase * HST_RATE;
-  const total = taxBase + tipAmount + tax;
+
+  const fees = computeFees(subtotal, tipAmount, waiverEnabled);
+  const { serviceFee, tax, total } = fees;
+
+  // Savings amount (constant for given subtotal/tip — shown in the toggle hint).
+  const { cpWaivedAmount } = computeWaiverSavings(subtotal, tipAmount);
+
+  // Whether the user has enough CP to use the waiver.
+  const canUseWaiver = initialWalletBalance >= WAIVER_COST_CP;
 
   const canPlace = address.trim().length > 0 && !placing;
 
@@ -240,12 +247,10 @@ export default function CheckoutPage() {
           price: item.price,
           quantity: item.quantity,
         })),
-        subtotal: parseFloat(subtotal.toFixed(2)),
-        deliveryFee: DELIVERY_FEE,
-        serviceFee: parseFloat(serviceFee.toFixed(2)),
+        // Server re-derives subtotal, deliveryFee, serviceFee, tax, total from
+        // validated DB prices — only tip and waiver intent come from the client.
         tip: parseFloat(tipAmount.toFixed(2)),
-        tax: parseFloat(tax.toFixed(2)),
-        total: parseFloat(total.toFixed(2)),
+        applyCpWaiver: waiverEnabled,
         deliveryAddress: {
           street: address.trim(),
           unit: unit.trim() || null,
@@ -527,13 +532,95 @@ export default function CheckoutPage() {
           )}
         </SectionCard>
 
+        {/* ── Community Points waiver ─────────────────────────────────────────── */}
+        <SectionCard>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p
+                className="text-base font-semibold text-foreground"
+                style={{ fontFamily: "var(--font-inter-tight)" }}
+              >
+                Use Community Points
+              </p>
+              {canUseWaiver ? (
+                <p
+                  className="mt-0.5 text-xs text-foreground/55"
+                  style={{ fontFamily: "var(--font-inter-tight)" }}
+                >
+                  {initialWalletBalance.toLocaleString()} CP available ·{" "}
+                  Waive delivery fee (save {fmt(cpWaivedAmount)})
+                </p>
+              ) : (
+                <p
+                  className="mt-0.5 text-xs text-foreground/45"
+                  style={{ fontFamily: "var(--font-inter-tight)" }}
+                >
+                  Earn {WAIVER_COST_CP.toLocaleString()} CP to waive your delivery fee
+                </p>
+              )}
+            </div>
+
+            {/* Pill toggle */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={waiverEnabled}
+              aria-label="Waive delivery fee with Community Points"
+              disabled={!canUseWaiver}
+              onClick={() => setWaiverEnabled((v) => !v)}
+              className={[
+                "relative mt-0.5 inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent",
+                "transition-colors duration-200 ease-in-out",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                !canUseWaiver
+                  ? "cursor-not-allowed opacity-40"
+                  : waiverEnabled
+                    ? "bg-primary"
+                    : "bg-foreground/20",
+              ].join(" ")}
+            >
+              <span
+                aria-hidden="true"
+                className={[
+                  "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm",
+                  "transform transition duration-200 ease-in-out",
+                  waiverEnabled ? "translate-x-5" : "translate-x-0",
+                ].join(" ")}
+              />
+            </button>
+          </div>
+        </SectionCard>
+
         {/* ── Order total ────────────────────────────────────────────────────── */}
         <SectionCard>
           <SectionHeading>Order total</SectionHeading>
 
           <dl className="space-y-2.5">
             <TotalRow label="Subtotal" value={subtotal} />
-            <TotalRow label="Delivery fee" value={DELIVERY_FEE} />
+
+            {/* Delivery fee — special display when waiver is active */}
+            {waiverEnabled ? (
+              <div className="flex items-center justify-between">
+                <dt
+                  className="text-sm text-foreground/60"
+                  style={{ fontFamily: "var(--font-inter-tight)" }}
+                >
+                  Delivery fee
+                </dt>
+                <dd
+                  className="flex items-center gap-2"
+                  style={{ fontFamily: "var(--font-inter-tight)" }}
+                >
+                  <span className="text-sm tabular-nums line-through text-foreground/30">
+                    {fmt(DELIVERY_FEE)}
+                  </span>
+                  <span className="text-sm font-semibold text-primary">Waived</span>
+                </dd>
+              </div>
+            ) : (
+              <TotalRow label="Delivery fee" value={fees.deliveryFee} />
+            )}
+
             <TotalRow label="Service fee (10%)" value={serviceFee} />
             <TotalRow
               label={`Tip (${tipMode === "custom" ? "custom" : `${tipMode}%`})`}
@@ -544,6 +631,16 @@ export default function CheckoutPage() {
               <TotalRow label="Total" value={total} bold />
             </div>
           </dl>
+
+          {/* CP cost note when waiver is active */}
+          {waiverEnabled && (
+            <p
+              className="mt-3 rounded-lg bg-primary/5 px-3 py-2 text-xs text-primary/80"
+              style={{ fontFamily: "var(--font-inter-tight)" }}
+            >
+              {WAIVER_COST_CP.toLocaleString()} CP will be deducted once payment is confirmed.
+            </p>
+          )}
         </SectionCard>
 
         {placeError && (
