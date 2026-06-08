@@ -112,6 +112,7 @@ export default async function CorrectionsAdminPage({
                 id={c.id}
                 status={c.status}
                 existingReply={c.reply}
+                noteStatus={c.note.status}
               />
             </div>
           ))}
