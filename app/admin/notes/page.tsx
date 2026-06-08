@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NoteStatus } from "@prisma/client";
+import { getEconParam } from "@/lib/cp/econ-params";
 import NoteActions from "./NoteActions";
 
 function riskClass(score: number) {
@@ -19,6 +20,16 @@ const STATUS_COLORS: Record<NoteStatus, string> = {
 };
 
 export default async function NotesAdminPage() {
+  // Read threshold once for the page — passed to each NoteActions so the
+  // client component can pre-render the blocked state without a round-trip.
+  // Fail to the safe default (5) — same fallback as the gate itself uses.
+  let threshold = 5;
+  try {
+    const raw = await getEconParam("note_high_risk_threshold");
+    const parsed = raw as number;
+    if (Number.isFinite(parsed) && parsed > 0) threshold = parsed;
+  } catch { /* fallback stands */ }
+
   const notes = await prisma.processedNote.findMany({
     orderBy: { createdAt: "desc" },
   });
@@ -32,6 +43,9 @@ export default async function NotesAdminPage() {
             Neighbours Notes
           </h1>
         </div>
+        <p className="text-xs text-foreground/40">
+          HIGH-risk gate: riskScore ≥ {threshold}
+        </p>
       </div>
 
       {notes.length === 0 ? (
@@ -54,7 +68,7 @@ export default async function NotesAdminPage() {
             <tbody>
               {notes.map((note) => {
                 const safeToPush =
-                  note.autoPublishEligible && note.riskScore <= 3;
+                  note.autoPublishEligible && note.riskScore < threshold;
                 return (
                   <tr key={note.id}>
                     <td className="max-w-xs">
@@ -102,7 +116,12 @@ export default async function NotesAdminPage() {
                       })}
                     </td>
                     <td>
-                      <NoteActions id={note.id} status={note.status} />
+                      <NoteActions
+                        id={note.id}
+                        status={note.status}
+                        riskScore={note.riskScore}
+                        threshold={threshold}
+                      />
                     </td>
                   </tr>
                 );

@@ -37,6 +37,7 @@ export interface SummarizedNote {
   impact: ImpactScores;
   risk_score: number;            // 0–10
   auto_publish_eligible: boolean;
+  confidence: number;            // 0.0–1.0 self-reported model certainty in risk_score + category
 }
 
 // ─── Zod schema (validates Gemini response shape) ─────────────────────────────
@@ -61,6 +62,7 @@ const SummarizedNoteSchema = z.object({
   }),
   risk_score: z.number().int().min(0).max(10),
   auto_publish_eligible: z.boolean(),
+  confidence: z.number().min(0).max(1),
 });
 
 // ─── Gemini client ────────────────────────────────────────────────────────────
@@ -96,6 +98,33 @@ Apply the HIGHEST applicable rule:
 
 auto_publish_eligible must be true if and only if risk_score ≤ 4.
 
+TRANSFORMATIVE SUMMARISATION (mandatory — legal requirement):
+- Restate facts entirely in your own original wording. Do NOT reproduce the source's
+  phrasing verbatim except for: proper nouns, street names, and direct official
+  statements of fewer than 10 words attributed to a named speaker.
+- Do not closely paraphrase one or two source sentences in sequence. Synthesise,
+  abbreviate, and refocus on neighbour impact.
+- The summary must be safe to publish alongside a link-back to the source. It must
+  inform the reader of the key facts — not substitute for reading the source.
+- If the source contains allegations about named individuals or businesses, do not
+  include those allegations in the summary. Raise the risk_score instead.
+
+RISK CONSERVATISM (err toward HIGH when uncertain):
+- When you are uncertain whether content contains named individuals, unverified
+  allegations, contentious claims, or sensitive Safety/DevApp content, assign a
+  HIGHER risk_score rather than lower.
+- If your confidence score (see below) will be below 0.75, do not assign a score
+  that sits within 1 point of the HIGH-risk threshold. Round up instead.
+- Rationale: the human review queue exists for exactly this purpose. A false HIGH
+  costs one admin review. A false LOW is a publication liability.
+
+CONFIDENCE:
+- Assign a "confidence" value (float 0.0–1.0) representing your certainty in the
+  risk_score and category assignment for this item.
+  - 0.9–1.0: very confident; content is clear and unambiguous
+  - 0.7–0.89: moderately confident; minor ambiguity
+  - Below 0.7: uncertain; content is ambiguous, incomplete, or borderline
+
 OUTPUT FORMAT — return ONLY a JSON object with this exact shape, no prose:
 {
   "headline": "<max 80 chars, present-tense, neighbour-focused>",
@@ -108,7 +137,8 @@ OUTPUT FORMAT — return ONLY a JSON object with this exact shape, no prose:
     "time": <integer 0–5>
   },
   "risk_score": <integer 0–10>,
-  "auto_publish_eligible": <true | false>
+  "auto_publish_eligible": <true | false>,
+  "confidence": <float 0.0–1.0>
 }`;
 
 // ─── Main function ────────────────────────────────────────────────────────────

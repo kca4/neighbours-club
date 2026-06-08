@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ingestRSSFeed, ingestOpenOttawa } from "@/lib/notes-ingest";
 import { summarizeNewsItem } from "@/lib/notes-intelligence";
+import { getSourcePublisher } from "@/lib/notes-sources";
+import { getEconParam } from "@/lib/cp/econ-params";
 import { generateNoteSlug } from "@/lib/slugify";
+
+// Confidence below this floor triggers the conservative risk bump.
+// If the model is uncertain AND the score sits one below the gate, round up.
+// Code constant (not yet an EconParam — promote when we have live calibration data).
+const CONFIDENCE_FLOOR = 0.75;
+
+const AI_MODEL = "gemini-2.5-flash";
 
 const SOURCES = [
   {
@@ -64,6 +73,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // ── Read risk threshold once for the whole batch ───────────────────────────
+  // Fallback to 5 (same default as EconParam seed) if the config is unavailable.
+  let riskThreshold = 5;
+  try {
+    const raw = await getEconParam("note_high_risk_threshold");
+    const parsed = raw as number;
+    if (Number.isFinite(parsed) && parsed > 0) riskThreshold = parsed;
+  } catch { /* fallback stands */ }
+
   // Step 1: Ingest all feeds
   let feedsProcessed = 0;
   let itemsIngested = 0;
@@ -111,22 +129,53 @@ export async function POST(req: NextRequest) {
     try {
       const result = await summarizeNewsItem(item.body, item.sourceUrl);
 
+      // ── Conservative risk bump ─────────────────────────────────────────────
+      // If the model is uncertain (confidence below floor) AND the score sits
+      // exactly one below the gate threshold, round up so the note enters the
+      // review queue rather than slipping through. "When in doubt, flag it."
+      let finalRiskScore = result.risk_score;
+      if (
+        result.confidence < CONFIDENCE_FLOOR &&
+        finalRiskScore === riskThreshold - 1
+      ) {
+        console.warn(
+          "[ingest-notes] Conservative bump applied: riskScore %d→%d for %s (confidence=%s)",
+          finalRiskScore,
+          riskThreshold,
+          item.sourceUrl,
+          result.confidence.toFixed(2),
+        );
+        finalRiskScore = riskThreshold;
+      }
+
+      // ── Initial status ─────────────────────────────────────────────────────
+      // HIGH-risk notes start as BLOCKED_NEEDS_FRAMEWORK so they appear in
+      // the visible blocked queue rather than the normal DRAFT review queue.
+      // The approveNote gate is still the hard chokepoint — this is defense
+      // in depth at creation time.
+      const initialStatus =
+        finalRiskScore >= riskThreshold ? "BLOCKED_NEEDS_FRAMEWORK" : "DRAFT";
+
       const noteSlug = await generateNoteSlug(result.headline);
       await prisma.processedNote.create({
         data: {
-          rawIntelId: item.id,
-          sourceUrl: item.sourceUrl,
-          headline: result.headline,
-          summary: result.summary,
-          streetOrArea: result.street_or_area,
-          category: result.category,
-          impactSafety: result.impact.safety,
-          impactCost: result.impact.cost,
-          impactTime: result.impact.time,
-          riskScore: result.risk_score,
-          autoPublishEligible: result.auto_publish_eligible,
-          slug: noteSlug,
-          status: "DRAFT",
+          rawIntelId:          item.id,
+          sourceUrl:           item.sourceUrl,
+          sourcePublisher:     getSourcePublisher(item.sourceId),
+          sourceIngestedAt:    item.ingestedAt,
+          headline:            result.headline,
+          summary:             result.summary,
+          streetOrArea:        result.street_or_area,
+          category:            result.category,
+          impactSafety:        result.impact.safety,
+          impactCost:          result.impact.cost,
+          impactTime:          result.impact.time,
+          riskScore:           finalRiskScore,
+          autoPublishEligible: finalRiskScore < riskThreshold,
+          aiModel:             AI_MODEL,
+          aiConfidence:        result.confidence,
+          slug:                noteSlug,
+          status:              initialStatus,
         },
       });
 
