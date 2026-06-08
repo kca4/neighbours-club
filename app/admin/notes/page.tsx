@@ -9,9 +9,13 @@ function riskClass(score: number) {
 }
 
 const STATUS_COLORS: Record<NoteStatus, string> = {
-  DRAFT: "bg-gray-100 text-gray-700",
-  APPROVED: "bg-green-100 text-green-800",
-  PUBLISHED: "bg-blue-100 text-blue-800",
+  DRAFT:                   "bg-gray-100 text-gray-700",
+  APPROVED:                "bg-green-100 text-green-800",
+  PUBLISHED:               "bg-blue-100 text-blue-800",
+  REJECTED:                "bg-red-100 text-red-700",
+  CORRECTED:               "bg-amber-100 text-amber-800",
+  RETRACTED:               "bg-orange-100 text-orange-800",
+  BLOCKED_NEEDS_FRAMEWORK: "bg-purple-100 text-purple-800",
 };
 
 export default async function NotesAdminPage() {

@@ -34,6 +34,7 @@ export type EconParamKey =
   | 'phi_target_high'
   | 'phi_alarm_threshold'
   | 'cap_reset_timezone'
+  | 'note_high_risk_threshold'
 // NOTE: cp_to_dollar_rate is NOT in this union — it is an open business
 // decision (Spec §13 #1) and must be added deliberately when settled.
 
@@ -52,6 +53,7 @@ const FALLBACKS: Record<EconParamKey, string> = {
   phi_target_high:          '1.1',
   phi_alarm_threshold:      '1.15',
   cap_reset_timezone:       'America/Toronto',
+  note_high_risk_threshold: '5',
 }
 
 // ─── Accessor ─────────────────────────────────────────────────────────────────

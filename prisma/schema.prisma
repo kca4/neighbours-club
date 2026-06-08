@@ -79,6 +79,17 @@ enum NoteStatus {
   DRAFT
   APPROVED
   PUBLISHED
+  REJECTED
+  CORRECTED
+  RETRACTED
+  BLOCKED_NEEDS_FRAMEWORK
+}
+
+enum CorrectionStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  REJECTED
 }
 
 enum NoteCategory {
@@ -641,6 +652,24 @@ model ProcessedNote {
   restaurantId String?
   restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
 
+  // ── Attribution fields (populated at ingest time) ──────────────────────────
+  sourcePublisher  String?    // human-readable, e.g. "CBC Ottawa" (vs raw sourceId)
+  sourceIngestedAt DateTime?  // denormalized from RawIntel.ingestedAt at creation
+
+  // ── AI provenance ──────────────────────────────────────────────────────────
+  aiModel      String?  // e.g. "gemini-2.5-flash"
+  aiConfidence Float?   // model-reported confidence 0.0–1.0 (not money — Float is correct)
+
+  // ── Lifecycle timestamps ───────────────────────────────────────────────────
+  publishedAt DateTime?  // when admin approved; distinct from sentAt (email-dispatch)
+
+  // ── Editorial versioning ───────────────────────────────────────────────────
+  version Int @default(1)  // incremented on each correction/edit
+
+  // ── Correction + version history relations ─────────────────────────────────
+  corrections NoteCorrection[]
+  versions    NoteVersion[]
+
   @@index([businessProfileId])
   @@map("processed_notes")
 }
@@ -683,4 +712,42 @@ model WalletLedger {
   @@index([walletId])
   @@index([walletId, createdAt])
   @@map("wallet_ledger")
+}
+
+// ─── Notes: Correction Requests ───────────────────────────────────────────────
+
+model NoteCorrection {
+  id               String           @id @default(cuid())
+  noteId           String
+  note             ProcessedNote    @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  requesterContact String           // email or name provided by the claimant
+  claim            String           @db.Text
+  status           CorrectionStatus @default(OPEN)
+  resolution       String?          @db.Text // internal resolution notes
+  reply            String?          @db.Text // right-of-reply text (published alongside note)
+  acknowledgedAt   DateTime?
+  resolvedAt       DateTime?
+  createdAt        DateTime         @default(now())
+
+  @@index([noteId])
+  @@index([status])
+  @@map("note_corrections")
+}
+
+// ─── Notes: Immutable Version History ────────────────────────────────────────
+
+model NoteVersion {
+  id                 String        @id @default(cuid())
+  noteId             String
+  note               ProcessedNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  versionNumber      Int           // 1-based; matches ProcessedNote.version at snapshot time
+  snapshot           Json          // full ProcessedNote row at this moment (self-contained, no joins needed)
+  changedBy          String?       // userId, "system", or "cron"
+  changeReason       String?
+  riskScoreAtVersion Int           // denormalized for fast audit queries without parsing snapshot
+  createdAt          DateTime      @default(now())
+
+  @@unique([noteId, versionNumber])
+  @@index([noteId])
+  @@map("note_versions")
 }

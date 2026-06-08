@@ -68,6 +68,11 @@ const params: Array<{ key: string; value: string; description: string }> = [
     value: 'America/Toronto',
     description: 'Timezone used for daily and weekly cap window resets (Spec §13 #5)',
   },
+  {
+    key: 'note_high_risk_threshold',
+    value: '5',
+    description: '[TUNABLE] riskScore >= this value is HIGH-risk; ingest cron sets BLOCKED_NEEDS_FRAMEWORK instead of DRAFT (pilot gate, Notes Editorial Governance Spec)',
+  },
 ]
 
 async function main() {
