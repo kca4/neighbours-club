@@ -472,9 +472,17 @@ export default function OrderCard({
                   {item.name}
                 </span>
               </span>
-              <span className="shrink-0 text-xs tabular-nums text-foreground/45">
-                ${(item.price * item.quantity).toFixed(2)}
-              </span>
+              {item.redeemedWithCP ? (
+                /* CP redemption line — show "Secret Menu · X CP" rather than
+                   the misleading "$0.00" that price:0 would otherwise display */
+                <span className="shrink-0 text-xs font-medium text-amber-600 tabular-nums">
+                  Secret Menu · {(item.cpCost ?? 0).toLocaleString()} CP
+                </span>
+              ) : (
+                <span className="shrink-0 text-xs tabular-nums text-foreground/45">
+                  ${(item.price * item.quantity).toFixed(2)}
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -490,7 +498,16 @@ export default function OrderCard({
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            {isUber ? (
+            {/* "Paid with CP" tag — shown instead of fulfillment type for
+                CP-only orders so staff know no fiat reconciliation is needed */}
+            {order.items.some((i) => i.redeemedWithCP) ? (
+              <span
+                className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700"
+                style={{ fontFamily: "var(--font-inter-tight)" }}
+              >
+                Paid with CP
+              </span>
+            ) : isUber ? (
               <span
                 className="flex items-center gap-1 text-xs font-medium text-purple-700"
                 style={{ fontFamily: "var(--font-inter-tight)" }}

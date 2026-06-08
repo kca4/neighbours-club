@@ -1,10 +1,13 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getWalletBalance } from "@/lib/cp/wallet-view";
 import type { OperatingHours } from "@/lib/types/delivery";
 import RestaurantHero from "./RestaurantHero";
 import InfoBar from "./InfoBar";
 import MenuBrowser from "./MenuBrowser";
+import SecretMenuSection from "./SecretMenuSection";
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
@@ -38,6 +41,9 @@ export default async function DeliveryRestaurantPage({
 }) {
   const { slug } = await params;
 
+  // Auth — needed for the wallet balance passed to the secret menu section.
+  const session = await auth();
+
   // Fetch restaurant with neighbourhood name
   const restaurant = await prisma.restaurant.findUnique({
     where: { slug },
@@ -50,11 +56,14 @@ export default async function DeliveryRestaurantPage({
     notFound();
   }
 
-  // Fetch menu items — used by the menu sections (next prompt)
-  const menuItems = await prisma.menuItem.findMany({
-    where: { restaurantId: restaurant.id, isAvailable: true },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-  });
+  // Fetch menu items and wallet balance in parallel — both are fast reads.
+  const [menuItems, walletBalance] = await Promise.all([
+    prisma.menuItem.findMany({
+      where: { restaurantId: restaurant.id, isAvailable: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    session?.user?.id ? getWalletBalance(session.user.id) : null,
+  ]);
 
   // ── Serialise Prisma types for client components ─────────────────────────
   // Decimal fields → number, JsonValue hours → typed OperatingHours
@@ -76,8 +85,17 @@ export default async function DeliveryRestaurantPage({
     hours: restaurant.hours as unknown as OperatingHours,
   };
 
-  // Serialise menu items (Decimal → number, strip unused Date fields)
-  const items = menuItems.map((item) => ({
+  // ── Split secret vs regular items ───────────────────────────────────────
+  // Secret items are hidden from the regular menu browser; they surface in the
+  // dedicated Secret Menu section below. Items with isSecret=true but no valid
+  // cpCost are treated as misconfigured and silently excluded.
+  const regularMenuRaw = menuItems.filter((i) => !i.isSecret);
+  const secretMenuRaw = menuItems.filter(
+    (i) => i.isSecret && i.cpCost !== null && i.cpCost > 0
+  );
+
+  // Serialise regular items (Decimal → number, strip unused Date fields)
+  const items = regularMenuRaw.map((item) => ({
     id: item.id,
     name: item.name,
     description: item.description,
@@ -89,10 +107,18 @@ export default async function DeliveryRestaurantPage({
     sortOrder: item.sortOrder,
   }));
 
-  // Derive "Most Ordered" — top 4 items by global sortOrder.
-  // Items with sortOrder 0–3 are the featured items seeded per restaurant.
-  // These are the SAME objects (same IDs) that appear in their real category
-  // sections — no duplicate rows, no duplicate IDs.
+  // Serialise secret items (only the fields SecretMenuSection needs)
+  const secretItems = secretMenuRaw.map((item) => ({
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    imageUrl: item.imageUrl,
+    colorHex: item.colorHex,
+    cpCost: item.cpCost as number, // non-null guaranteed by filter above
+  }));
+
+  // Derive "Most Ordered" — top 4 regular items by global sortOrder.
+  // Secret items are intentionally excluded from this section.
   const mostOrderedItems = items
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
@@ -126,6 +152,9 @@ export default async function DeliveryRestaurantPage({
 
       {/* ── Menu browser — sticky tabs + scrollable sections ─────────── */}
       <MenuBrowser key={slug} items={items} mostOrderedItems={mostOrderedItems} restaurant={restaurantInfo} />
+
+      {/* ── Secret Menu — hidden if restaurant has no secret items ──────── */}
+      <SecretMenuSection items={secretItems} walletBalance={walletBalance} />
     </main>
   );
 }

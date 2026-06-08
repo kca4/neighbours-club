@@ -79,10 +79,12 @@ export async function refundAndCancelOrder(
       return { success: false, error: `Refund failed: ${message}` };
     }
   } else {
-    // No payment intent means the order was never paid (e.g. PENDING_PAYMENT
-    // race — should not normally reach here, but log it and continue).
+    // No Stripe PI: either (a) an abandoned PENDING_PAYMENT order that never
+    // completed payment, or (b) a CP-only secret-menu redemption order that was
+    // legitimately paid with Community Points and never had a PI. Both cases
+    // correctly skip the Stripe refund — no fiat was collected.
     console.warn(
-      `[refundAndCancelOrder] Order ${orderId} has no stripePaymentIntentId — cancelling without refund.`
+      `[refundAndCancelOrder] Order ${orderId} has no stripePaymentIntentId — cancelling without Stripe refund (CP-only or abandoned draft).`
     );
   }
 

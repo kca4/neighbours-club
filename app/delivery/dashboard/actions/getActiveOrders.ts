@@ -11,6 +11,11 @@ export interface OrderItem {
   name: string;
   price: number;
   quantity: number;
+  /** Present on CP secret-menu redemption lines. When true, the item was paid
+   *  with Community Points — price is 0 in fiat. */
+  redeemedWithCP?: boolean;
+  /** CP units burned for this item. Only present when redeemedWithCP is true. */
+  cpCost?: number;
 }
 
 export interface ActiveOrder {
