@@ -509,6 +509,30 @@ async function main() {
     sortOrder: 4,
   });
 
+  // ── Secret menu items ────────────────────────────────────────────────────
+  // Delete ALL existing secret items for this restaurant before creating the
+  // canonical one. This catches any stale rows (e.g. set via Prisma Studio
+  // with the old cpCost=3000) regardless of their name.
+  await prisma.menuItem.deleteMany({
+    where: { restaurantId: restaurant.id, isSecret: true },
+  });
+  await prisma.menuItem.create({
+    data: {
+      restaurantId: restaurant.id,
+      name: "Chef's Off-Menu Tasting Plate",
+      description:
+        "A rotating selection of the kitchen's favourite dishes — not on the regular menu. Unlock with CP.",
+      price: 0,   // CP-only redemption; no fiat charge
+      category: "Secret Menu",
+      tags: ["secret"],
+      colorHex: "#2D3748",
+      sortOrder: 1,
+      isAvailable: true,
+      isSecret: true,
+      cpCost: 1000,
+    },
+  });
+
   console.log("✓ Delivery neighbourhood, restaurant, and menu items seeded");
   console.log("\nSeed complete.");
 }

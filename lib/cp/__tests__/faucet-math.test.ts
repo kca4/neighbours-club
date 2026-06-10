@@ -14,30 +14,32 @@ import {
 } from '../faucet-math'
 
 // Pilot curve from EconParam seed (content_faucet_read_1/2/3to5)
-const PILOT_CURVE = [300, 100, 25, 25, 25]
+// Rescaled to $0.01/CP: was [300, 100, 25, 25, 25]; real dollar cost invariant held.
+// Curve sums to 157 CP/day max (100+33+8+8+8). Floor-rounding errs toward less emission.
+const PILOT_CURVE = [100, 33, 8, 8, 8]
 
 // ─── contentFaucetAmount ──────────────────────────────────────────────────────
 
 describe('contentFaucetAmount — n→CP curve (Spec §4)', () => {
-  it('n=0 (1st read today) → 300 CP', () => {
-    expect(contentFaucetAmount(0, PILOT_CURVE)).toBe(300)
+  it('n=0 (1st read today) → 100 CP', () => {
+    expect(contentFaucetAmount(0, PILOT_CURVE)).toBe(100)
   })
 
-  it('n=1 (2nd read today) → 100 CP', () => {
-    expect(contentFaucetAmount(1, PILOT_CURVE)).toBe(100)
+  it('n=1 (2nd read today) → 33 CP', () => {
+    expect(contentFaucetAmount(1, PILOT_CURVE)).toBe(33)
   })
 
-  it('n=2 (3rd read today) → 25 CP', () => {
-    expect(contentFaucetAmount(2, PILOT_CURVE)).toBe(25)
+  it('n=2 (3rd read today) → 8 CP', () => {
+    expect(contentFaucetAmount(2, PILOT_CURVE)).toBe(8)
   })
 
-  it('n=3 (4th read today) → 25 CP', () => {
-    expect(contentFaucetAmount(3, PILOT_CURVE)).toBe(25)
+  it('n=3 (4th read today) → 8 CP', () => {
+    expect(contentFaucetAmount(3, PILOT_CURVE)).toBe(8)
   })
 
   // Paid boundary: the 5th read is the last that mints CP
-  it('n=4 (5th read today) → 25 CP — last paid read', () => {
-    expect(contentFaucetAmount(4, PILOT_CURVE)).toBe(25)
+  it('n=4 (5th read today) → 8 CP — last paid read', () => {
+    expect(contentFaucetAmount(4, PILOT_CURVE)).toBe(8)
   })
 
   // Unpaid boundary: the 6th read mints 0 (but is still written to the ledger)
@@ -58,28 +60,30 @@ describe('contentFaucetAmount — n→CP curve (Spec §4)', () => {
 
 describe('clampToCap (Spec §5)', () => {
   it('passes full amount when well under cap', () => {
-    expect(clampToCap(300, 0, 550)).toBe(300)
+    // 0 earned, proposing 100 (read_1), cap 185 — full award passes through
+    expect(clampToCap(100, 0, 185)).toBe(100)
   })
 
   it('clamps to remaining budget when partially used', () => {
-    // 400 already earned, 150 remaining → award is 150 not 300
-    expect(clampToCap(300, 400, 550)).toBe(150)
+    // 135 already earned, 50 remaining of 185 → award is 50 not 100
+    // Clamp visibly fires: proposed 100 > 50 remaining
+    expect(clampToCap(100, 135, 185)).toBe(50)
   })
 
   it('returns 0 when cap is exactly reached', () => {
-    expect(clampToCap(100, 550, 550)).toBe(0)
+    expect(clampToCap(33, 185, 185)).toBe(0)
   })
 
   it('returns 0 when cap is exceeded (e.g. two concurrent grants)', () => {
-    expect(clampToCap(100, 600, 550)).toBe(0)
+    expect(clampToCap(100, 200, 185)).toBe(0)
   })
 
   it('returns 0 for a zero proposal', () => {
-    expect(clampToCap(0, 0, 550)).toBe(0)
+    expect(clampToCap(0, 0, 185)).toBe(0)
   })
 
   it('returns 0 for a negative proposal', () => {
-    expect(clampToCap(-50, 0, 550)).toBe(0)
+    expect(clampToCap(-50, 0, 185)).toBe(0)
   })
 })
 

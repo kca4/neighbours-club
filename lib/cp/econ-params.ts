@@ -7,9 +7,8 @@
  *
  * Design invariants:
  *  - `import 'server-only'` prevents this module from being bundled client-side.
- *  - `EconParamKey` is a CLOSED union — the only valid keys are the 10 Phase 1
- *    pilot params. `cp_to_dollar_rate` is intentionally absent; it cannot be
- *    read until it is deliberately added here (Spec §13 #1).
+ *  - `EconParamKey` is a CLOSED union — add new keys here deliberately; never
+ *    pass raw strings.
  *  - Every key has an in-code fallback equal to the seeded pilot value so a
  *    missing row degrades gracefully rather than crashing.
  *  - No caching — config table is tiny; a direct read per call avoids stale
@@ -35,25 +34,28 @@ export type EconParamKey =
   | 'phi_alarm_threshold'
   | 'cap_reset_timezone'
   | 'note_high_risk_threshold'
-// NOTE: cp_to_dollar_rate is NOT in this union — it is an open business
-// decision (Spec §13 #1) and must be added deliberately when settled.
+  // Deliberately added once $0.01/CP was a committed decision, not a
+  // placeholder. Previously withheld so no code could read a draft rate.
+  | 'cp_to_dollar_rate'
 
 // ─── In-code fallbacks ────────────────────────────────────────────────────────
 
 /** Pilot defaults — identical to the seeded values in prisma/seed-econ.ts.
  *  Used when a row is missing so callers degrade gracefully. */
 const FALLBACKS: Record<EconParamKey, string> = {
-  content_faucet_read_1:    '300',
-  content_faucet_read_2:    '100',
-  content_faucet_read_3to5: '25',
-  content_faucet_daily_cap: '550',
-  daily_total_earn_cap:     '2000',
-  weekly_total_earn_cap:    '8000',
+  content_faucet_read_1:    '100',
+  content_faucet_read_2:    '33',
+  content_faucet_read_3to5: '8',
+  content_faucet_daily_cap: '185',
+  daily_total_earn_cap:     '650',
+  weekly_total_earn_cap:    '2600',
   phi_target_low:           '0.9',
   phi_target_high:          '1.1',
   phi_alarm_threshold:      '1.15',
   cap_reset_timezone:       'America/Toronto',
   note_high_risk_threshold: '5',
+  // $0.01/CP — committed rate; fallback is intentional, not a placeholder.
+  cp_to_dollar_rate:        '1',
 }
 
 // ─── Accessor ─────────────────────────────────────────────────────────────────

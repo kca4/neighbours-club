@@ -7,8 +7,10 @@
  * Values are PILOT STARTING POINTS from CP Tokenomics Spec v2 — not final
  * business decisions. Calibrate against live Φ once a node is running.
  *
- * NOT seeded: cp_to_dollar_rate — that is an open business decision (§13 #1)
- * and must be set deliberately before anything touches real money.
+ * cp_to_dollar_rate is deliberately included here. It was withheld during the
+ * tokenomics phase so no code could read a placeholder rate. That stance was
+ * correct then; its reversal is correct now — $0.01/CP is a committed business
+ * decision, not a placeholder (see commit message for full rationale).
  *
  * Run: npx tsx prisma/seed-econ.ts
  */
@@ -18,35 +20,46 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 const params: Array<{ key: string; value: string; description: string }> = [
+  // ── Content faucet (rescaled to $0.01/CP; real dollar cost invariant held) ──
+  // Curve sums to 157 CP/day max (100+33+8+8+8). Floor-rounding errs toward
+  // less emission, which favours solvency over generosity.
   {
     key: 'content_faucet_read_1',
-    value: '300',
+    value: '100',
     description: 'CP awarded for the 1st verified_read in the rolling 24h window per user',
   },
   {
     key: 'content_faucet_read_2',
-    value: '100',
+    value: '33',
     description: 'CP awarded for the 2nd verified_read in the rolling 24h window per user',
   },
   {
     key: 'content_faucet_read_3to5',
-    value: '25',
+    value: '8',
     description: 'CP awarded for the 3rd–5th verified_reads in the rolling 24h window per user (each)',
   },
   {
     key: 'content_faucet_daily_cap',
-    value: '550',
+    value: '185',
     description: 'Hard daily CP cap from the content faucet alone per user (Spec §4)',
   },
   {
     key: 'daily_total_earn_cap',
-    value: '2000',
+    value: '650',
     description: 'Hard daily CP cap across ALL faucets per user — backstop against bugs/abuse (Spec §5)',
   },
   {
     key: 'weekly_total_earn_cap',
-    value: '8000',
+    value: '2600',
     description: 'Hard weekly CP cap across ALL faucets per user (Spec §5)',
+  },
+  // ── Disclosed CP→$ rate ───────────────────────────────────────────────────
+  // 1 cent per CP = $0.01/CP. Committed business decision; in-code fallback
+  // is intentional (not a placeholder). Units: cents per CP (integer).
+  {
+    key: 'cp_to_dollar_rate',
+    value: '1',
+    description: 'Disclosed CP→$ rate in cents per CP. 1 = $0.01/CP. Committed rate — not a pilot placeholder.',
   },
   {
     key: 'phi_target_low',

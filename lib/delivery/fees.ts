@@ -15,7 +15,7 @@ export const SERVICE_FEE_RATE = 0.10   // fraction of subtotal
 export const HST_RATE = 0.13           // applied to subtotal + deliveryFee + serviceFee
 
 /** CP units a user burns to waive the delivery fee on one order. */
-export const WAIVER_COST_CP = 1500
+export const WAIVER_COST_CP = 500
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
