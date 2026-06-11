@@ -39,28 +39,31 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const phiHigh  = cfg.phi_target_high      as number
   const phiAlarm = cfg.phi_alarm_threshold  as number
 
-  // Human-readable status — display only, no behavior attached.
-  //   undefined   → no burns yet; Φ cannot be computed
-  //   healthy     → Φ within [phi_target_low, phi_target_high]
-  //   above_target → Φ above the healthy band but below alarm
-  //   alarm       → Φ at or above phi_alarm_threshold (throttle would engage
-  //                  once built; for now this is an observation only)
-  let status: 'healthy' | 'above_target' | 'alarm' | 'undefined'
-  if (measurement.phi === null) {
-    status = 'undefined'
-  } else if (measurement.phi >= phiAlarm) {
-    status = 'alarm'
-  } else if (measurement.phi > phiHigh) {
-    status = 'above_target'
-  } else {
-    status = 'healthy'
+  // Human-readable status — derived from structuralPhi (primary signal).
+  // Display only; no behavior attached.
+  //   undefined    → no burns yet; Φ cannot be computed
+  //   healthy      → structural Φ within [phi_target_low, phi_target_high]
+  //   above_target → structural Φ above the healthy band but below alarm
+  //   alarm        → structural Φ at or above phi_alarm_threshold (throttle
+  //                   would engage once built; for now observation only)
+  function computeStatus(phi: number | null): 'healthy' | 'above_target' | 'alarm' | 'undefined' {
+    if (phi === null)      return 'undefined'
+    if (phi >= phiAlarm)   return 'alarm'
+    if (phi > phiHigh)     return 'above_target'
+    return 'healthy'
   }
 
   return NextResponse.json({
-    phi:        measurement.phi,
-    emitted:    measurement.emitted,
-    burned:     measurement.burned,
-    windowDays: measurement.windowDays,
+    // ── Structural Φ (primary — excludes manual_grant and admin adjustments) ─
+    structuralPhi:     measurement.structuralPhi,
+    structuralEmitted: measurement.structuralEmitted,
+    status:            computeStatus(measurement.structuralPhi),
+    // ── Raw Φ (secondary — all ledger entries, for reconciliation) ───────────
+    phi:    measurement.phi,
+    emitted: measurement.emitted,
+    // ── Shared ───────────────────────────────────────────────────────────────
+    burned:      measurement.burned,
+    windowDays:  measurement.windowDays,
     windowStart: measurement.windowStart.toISOString(),
     windowEnd:   measurement.windowEnd.toISOString(),
     band: {
@@ -68,7 +71,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       high:  phiHigh,
       alarm: phiAlarm,
     },
-    status,
-    _note: 'Throttle is NOT active. status is a display label only (Spec §13 #4).',
+    adminAdjustmentsExcluded: Math.max(0, measurement.emitted - measurement.structuralEmitted),
+    _note: 'Throttle is NOT active. status derived from structuralPhi (Spec §13 #4).',
   })
 }

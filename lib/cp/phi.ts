@@ -7,39 +7,48 @@
  * reads the ledger and returns Φ. It never writes to the ledger, never changes
  * any balance, and is never called from any faucet or earn path.
  *
- * Pure computation is in lib/cp/faucet-math.ts (computePhi, PHI_DEFAULT_WINDOW_DAYS)
- * so unit tests can import it without hitting `server-only`.
+ * Pure computation is in lib/cp/faucet-math.ts (computePhi, PHI_DEFAULT_WINDOW_DAYS,
+ * ADMIN_ADJUSTMENT_REASONS) so unit tests can import without hitting `server-only`.
  *
  * READ-ONLY INVARIANT — every Prisma call in this file is listed here.
  * If a future edit adds a write operation, update this list and get explicit
  * approval before merging:
- *   1. prisma.walletLedger.aggregate (amount > 0)  — sum emitted
- *   2. prisma.walletLedger.aggregate (amount < 0)  — sum burned
- *   3. prisma.econParam.findUnique                 — via getEconParam()
+ *   1. prisma.walletLedger.aggregate (amount > 0)                            — raw emitted
+ *   2. prisma.walletLedger.aggregate (amount > 0, reason NOT IN admin set)   — structural emitted
+ *   3. prisma.walletLedger.aggregate (amount < 0)                            — burned
+ *   4. prisma.econParam.findUnique                                           — via getEconParam()
  * None of: create, update, updateMany, delete, upsert, $executeRaw.
  */
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
 import { getEconParam } from './econ-params'
-import { getMidnightUTC, computePhi, PHI_DEFAULT_WINDOW_DAYS } from './faucet-math'
+import { getMidnightUTC, computePhi, PHI_DEFAULT_WINDOW_DAYS, ADMIN_ADJUSTMENT_REASONS } from './faucet-math'
 
 // Re-export the pure helpers so callers can import them from one place.
 // (Tests import directly from faucet-math to avoid the server-only guard.)
-export { computePhi, PHI_DEFAULT_WINDOW_DAYS }
+export { computePhi, PHI_DEFAULT_WINDOW_DAYS, ADMIN_ADJUSTMENT_REASONS }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface PhiMeasurement {
-  /** Σ positive ledger amounts in the window (all wallets, all faucets). */
-  emitted:     number
+  /** Σ positive ledger amounts in the window (all wallets, all reasons — raw total). */
+  emitted:          number
+  /** Σ positive ledger amounts excluding ADMIN_ADJUSTMENT_REASONS — the structural
+   *  faucet signal. Use this as the primary inflation indicator during the pilot. */
+  structuralEmitted: number
   /** |Σ negative ledger amounts| in the window (all wallets, all sinks). */
-  burned:      number
-  /** emitted / burned. null when burned === 0 (no burns yet — Φ undefined). */
-  phi:         number | null
-  windowStart: Date
-  windowEnd:   Date
-  windowDays:  number
+  burned:           number
+  /** emitted / burned — raw Φ including admin adjustments.
+   *  null when burned === 0 (no burns yet — Φ undefined). */
+  phi:              number | null
+  /** structuralEmitted / burned — structural Φ excluding ADMIN_ADJUSTMENT_REASONS.
+   *  This is the primary inflation signal; admin grants do not pollute it.
+   *  null when burned === 0. */
+  structuralPhi:    number | null
+  windowStart:      Date
+  windowEnd:        Date
+  windowDays:       number
 }
 
 // ─── measurePhi ───────────────────────────────────────────────────────────────
@@ -50,6 +59,13 @@ export interface PhiMeasurement {
  * math as the daily/weekly cap windows; no second windowing convention).
  *
  * Window: [getMidnightUTC(tz, now − windowDays×24h), now)
+ *
+ * Returns TWO Φ values:
+ *   phi           — raw: all positive ledger entries included
+ *   structuralPhi — filtered: ADMIN_ADJUSTMENT_REASONS excluded from emitted
+ *
+ * Use structuralPhi as the primary inflation signal. Use phi (raw) to
+ * reconcile the full ledger and see the gap caused by admin adjustments.
  *
  * This function is PURE READ. It aggregates the ledger and returns a snapshot.
  * It does not write anything, does not change any balance, and is safe to call
@@ -71,34 +87,48 @@ export async function measurePhi(options?: {
   const windowStart = getMidnightUTC(tz, new Date(now.getTime() - windowDays * 86_400_000))
   const windowEnd   = now
 
-  // ── Aggregate emitted (positive ledger amounts) ───────────────────────────
-  // Covers all wallets, all faucet reasons (verified_read, group_buy_reward,
-  // signup_bonus, manual_grant, …). Platform-wide, not per-user.
-  const emittedAgg = await prisma.walletLedger.aggregate({
-    where: {
-      amount:    { gt: 0 },
-      createdAt: { gte: windowStart, lt: windowEnd },
-    },
-    _sum: { amount: true },
-  })
-  const emitted = emittedAgg._sum.amount ?? 0
+  // Convert the set to an array for Prisma's notIn filter.
+  const adminReasons = Array.from(ADMIN_ADJUSTMENT_REASONS)
 
-  // ── Aggregate burned (negative ledger amounts, return as positive) ─────────
-  // Covers all wallets, all sink reasons (delivery_fee_waiver, secret_menu_redeem,
-  // donation, …).
-  const burnedAgg = await prisma.walletLedger.aggregate({
-    where: {
-      amount:    { lt: 0 },
-      createdAt: { gte: windowStart, lt: windowEnd },
-    },
-    _sum: { amount: true },
-  })
-  const burned = Math.abs(burnedAgg._sum.amount ?? 0)
+  // ── Run all three aggregates in parallel — independent reads ──────────────
+  const [emittedAgg, structuralAgg, burnedAgg] = await Promise.all([
+    // 1. Raw emitted: all positive ledger entries (all reasons)
+    prisma.walletLedger.aggregate({
+      where: {
+        amount:    { gt: 0 },
+        createdAt: { gte: windowStart, lt: windowEnd },
+      },
+      _sum: { amount: true },
+    }),
+    // 2. Structural emitted: positive entries EXCLUDING admin adjustments
+    prisma.walletLedger.aggregate({
+      where: {
+        amount:    { gt: 0 },
+        reason:    { notIn: adminReasons },
+        createdAt: { gte: windowStart, lt: windowEnd },
+      },
+      _sum: { amount: true },
+    }),
+    // 3. Burned: all negative ledger entries (absolute value)
+    prisma.walletLedger.aggregate({
+      where: {
+        amount:    { lt: 0 },
+        createdAt: { gte: windowStart, lt: windowEnd },
+      },
+      _sum: { amount: true },
+    }),
+  ])
+
+  const emitted          = emittedAgg._sum.amount    ?? 0
+  const structuralEmitted = structuralAgg._sum.amount ?? 0
+  const burned           = Math.abs(burnedAgg._sum.amount ?? 0)
 
   return {
     emitted,
+    structuralEmitted,
     burned,
-    phi:         computePhi(emitted, burned),
+    phi:           computePhi(emitted, burned),
+    structuralPhi: computePhi(structuralEmitted, burned),
     windowStart,
     windowEnd,
     windowDays,

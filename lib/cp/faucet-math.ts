@@ -137,6 +137,24 @@ export function clampToCap(proposed: number, alreadyEarned: number, cap: number)
   return Math.min(proposed, remaining)
 }
 
+// ─── Administrative adjustment reasons (Φ exclusion set) ─────────────────────
+//
+// Ledger `reason` values in this set are EXCLUDED from the structural Φ
+// emitted sum. They represent administrative adjustments — support grants,
+// test grants, goodwill credits, reversals — rather than real faucet activity.
+//
+// MAINTENANCE: when you add a new `CPReason` that is an administrative
+// adjustment (not a real platform faucet), add it here. Failing to do so
+// silently inflates structural Φ and may produce false inflation alarms.
+//
+// What belongs here: emit events that are NOT user-earned faucets.
+// What does NOT belong: verified_read, group_buy_reward, referral_verified,
+// merchant_bounty — these are real economic events and must stay in
+// structural Φ.
+export const ADMIN_ADJUSTMENT_REASONS = new Set<string>([
+  'manual_grant', // dev/admin one-off grant (scripts, admin console, test setup)
+])
+
 // ─── Φ (phi) inflation metric ─────────────────────────────────────────────────
 
 /**
