@@ -1,4 +1,4 @@
-import { PrismaClient, Role, DealStatus, OrderStatus } from "@prisma/client";
+import { PrismaClient, Role, DealStatus, OrderStatus, DriverStatus, VehicleType } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -325,6 +325,47 @@ async function main() {
       hours: kitchenHours,
     },
   });
+
+  // ── RESTAURANT_OWNER — linked to kanata-kitchen ──────────────────────────
+  const restaurantOwner = await prisma.user.upsert({
+    where: { email: "restaurant_owner@neighboursclub.test" },
+    update: { role: Role.RESTAURANT_OWNER, restaurantId: restaurant.id },
+    create: {
+      email: "restaurant_owner@neighboursclub.test",
+      passwordHash,
+      name: "Marie Fontaine",
+      role: Role.RESTAURANT_OWNER,
+      restaurantId: restaurant.id,
+    },
+  });
+  // Keep the restaurant's ownerId in sync (idempotent — same value on re-run)
+  await prisma.restaurant.update({
+    where: { id: restaurant.id },
+    data: { ownerId: restaurantOwner.id },
+  });
+
+  // ── COURIER — user + DeliveryDriver row ───────────────────────────────────
+  const courierUser = await prisma.user.upsert({
+    where: { email: "courier@neighboursclub.test" },
+    update: { role: Role.COURIER },
+    create: {
+      email: "courier@neighboursclub.test",
+      passwordHash,
+      name: "Alex Dubois",
+      role: Role.COURIER,
+    },
+  });
+  await prisma.deliveryDriver.upsert({
+    where: { userId: courierUser.id },
+    update: {},
+    create: {
+      userId: courierUser.id,
+      status: DriverStatus.OFFLINE,
+      vehicleType: VehicleType.CAR,
+    },
+  });
+
+  console.log("✓ Restaurant owner and courier seeded");
 
   // Helper — upsert menu items (idempotent re-seeds)
   async function upsertItem(data: {
