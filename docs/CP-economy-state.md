@@ -1,8 +1,8 @@
 # CP Economy — Current State
 
-**Generated from:** `lib/cp/`, `prisma/schema.prisma`, `lib/delivery/settlement.ts`, `app/api/cron/close-deals/`  
+**Generated from:** `lib/cp/`, `lib/delivery/fees.ts`, `lib/delivery/settlement.ts`, `prisma/schema.prisma`, `app/api/cron/close-deals/`  
 **Last updated:** 2026-06-13  
-**Status:** Pilot-ready foundation. Measurement-only Φ governor. Three sinks live; two faucets live.
+**Status:** Pilot-ready foundation. Measurement-only Φ governor. Two faucets live; two sinks live. CP rate committed at $0.01/CP.
 
 ---
 
@@ -129,7 +129,9 @@ Flat key/value table. All `[TUNABLE]` economy values live here so they can be ch
 4. On success: `cpWaiverSettled=true`.
 5. On `InsufficientBalanceError` (rare race): order proceeds at discounted price; `cpWaiverSettled` stays false for manual reconciliation; NOT a fatal error.
 
-**Rate:** `$0.01/CP` (`cp_to_dollar_rate` = 1). Fee dollar amount divided by rate = CP cost.
+**Fixed CP cost:** `WAIVER_COST_CP = 500` — defined as a named constant in `lib/delivery/fees.ts`, imported at checkout and stored as `DeliveryOrder.cpWaiverCost`. At $0.01/CP this equals $5.00, closely matching the $4.99 delivery fee + HST ($5.64 total savings).
+
+**Rate:** `$0.01/CP` (`cp_to_dollar_rate` = 1).
 
 ### 5b. Secret menu redemption (`secret_menu_redeem`) — SCHEMA LIVE, settlement path exists
 **Schema fields on DeliveryOrder:** `cpRedemptionSettled`, `redemptionKey` (unique, cleared on terminal state)
@@ -138,7 +140,7 @@ Flat key/value table. All `[TUNABLE]` economy values live here so they can be ch
 
 **Settlement:** The webhook / settlement path checks `cpRedemptionSettled` and calls `burnCP` with `reason: 'secret_menu_redeem'`. Implementation is in the delivery checkout and settlement layer.
 
-**CP cost:** Defined per `MenuItem.cpCost` (seed: 1000 CP for Chef's Off-Menu Tasting Plate). `MenuItem.price = 0` for CP-only items (no fiat charge).
+**CP cost:** Defined per `MenuItem.cpCost` (seed: 1000 CP for Chef's Off-Menu Tasting Plate). `MenuItem.price = 0` for CP-only items (no fiat charge). At $0.01/CP the implicit value is $10 — set deliberately as a fixed pilot price, not commerce-weighted.
 
 ### 5c. Not yet wired
 - `donation` — civic sink; requires a funded `CivicCampaign` model and disbursement plumbing. Ships behind a disabled gate pending real budget sign-off.
@@ -221,8 +223,11 @@ Integration tests (idempotency under retry, cap-clamp end-to-end, burnCP overdra
 |---|---|
 | `tier_bridge` not wired | Requires deal-tier logic change to detect tier-crossing at join time |
 | `signup_bonus` not wired | One call site in signup route; straightforward add |
-| Civic sink (`donation`) disabled | Requires real funded campaign and match budget sign-off |
-| Φ throttle not active | Intentional — observe first, enforce later |
-| `PHI_DEFAULT_WINDOW_DAYS` hardcoded | Promote to EconParam after first calibration run |
-| `merchant_bounty` + `referral_verified` | Not yet in `CPReason` — add only when the backing mechanism exists |
-| Secret menu settlement audit | `cpRedemptionSettled=false` rows need a periodic sweep or admin alert |
+| Civic sink (`donation`) disabled | Charitable-solicitation exposure; requires counsel sign-off and a real funded campaign. Ships behind a disabled gate. |
+| §8 real-backing ceiling not enforced | Now that `cp_to_dollar_rate` exists, the emission ceiling (net CP emitted must not exceed real economic value platform can deliver) can be computed. Enforcement deferred to post-pilot. |
+| Commerce-weighted `group_buy_reward` | Stays flat (330 CP) for the pilot. Commerce-weighting (% of captured fiat) deferred until real Φ data exists. |
+| Φ throttle not active | Intentional — observe first, enforce later. Requires calibrated window length and explicit sign-off (Spec §13 #4). |
+| `PHI_DEFAULT_WINDOW_DAYS` hardcoded | Promote to EconParam after first calibration run on real data. |
+| `merchant_bounty` + `referral_verified` | Not yet in `CPReason` — add only when the backing mechanism exists. |
+| Secret menu settlement audit | `cpRedemptionSettled=false` rows need a periodic sweep or admin alert. |
+| CP waiver reconciliation sweep | `cpWaiverSettled=false` rows that have progressed past PENDING_PAYMENT need a periodic sweep or admin alert. |

@@ -1,11 +1,16 @@
-# PROMPT-0 — Session Reorientation
+# PROMPT 0 — Claude Code Re-orientation (Neighbours Club)
 
-**Use this at the start of any new Claude Code session on this project.**  
-Copy-paste the block below as your opening message, with the current task filled in.
+> Paste this at the start of any fresh Claude Code session to re-establish context.
+> It ends in REPORT-ONLY mode so the session re-orients before touching anything.
+>
+> **How this file works:** the section between the ``` fences below is the prompt
+> to paste. The "CURRENT STATE" and "NEXT TASK" sections are what change over time.
+> When you finish a task, update those two sections (or ask Claude to) so this file
+> always reflects where you actually are. Everything above the fence is stable.
 
 ---
 
-## Reorientation prompt (copy this)
+## THE PROMPT TO PASTE
 
 ```
 We're continuing work on the Neighbours Club platform (Next.js App Router,
@@ -49,93 +54,71 @@ REPO-SPECIFIC FACTS (not inferable from the schema — hold these):
 Before any code, REPORT what you find for the CURRENT TASK below, and wait for
 my approval of your plan. Show me a before/after or exists/net-new table where
 relevant. One logical task, one commit, plan-first.
-
-CURRENT TASK:
-[describe what you want to accomplish here]
 ```
 
 ---
 
-## Key reference docs (read before planning)
+## CURRENT STATE (update as you go)
 
-| Doc | What it covers |
-|---|---|
-| `CLAUDE.md` | Project overview, tech stack, data models, architectural invariants, conventions |
-| `docs/CP-economy-state.md` | Current state of the CP economy: ledger, faucets, sinks, config, Φ — generated from real code |
-| `docs/remaining-work-plan.md` | Decisions still needed (Tier 0) + launch blockers + hardening + post-pilot tasks |
-| `docs/verification-checklist.md` | End-to-end manual QA checklist by vertical |
-| `docs/CP_Tokenomics_Spec_v2.md` | Full CP economy specification |
-| `docs/engagement-pattern-standard.md` | The engagement gate — read before any feature that touches UX or CP incentives |
-| `docs/Group_Buy_Merchant_Economics_Spec.md` | Group buy take-rate, floor pricing, merchant payout spec |
-| `docs/Notes_Editorial_Governance_AI_Liability_Spec.md` | Notes editorial state machine, risk classifier, correction/right-of-reply |
-| `docs/Code_Implementation_Plan.md` | Foundation-first build sequence |
-| `docs/Node_Liquidity_Seeding_Playbook.md` | Participation rate measurement, clear-rate, merchant retention dashboards |
+**Last completed:** Project reference docs added (commit 0a63724):
+docs/CP-economy-state.md, docs/remaining-work-plan.md,
+docs/verification-checklist.md, docs/PROMPT-0-reorientation.md — generated from
+real repo state and version-controlled for future session re-orientation.
 
----
+**Previously completed (still current):**
+- CP $0.01/CP rate rescale done (commit 9a14e11): all faucet/sink values rescaled
+  (delivery_fee_waiver 1500→500, secret_redemption 3000→1000, verified_read
+  300/100/25→100/33/8, group_buy_reward 1000→330, caps rescaled, cp_to_dollar_rate=1
+  added to EconParam).
+- Φ admin route promoted (commit 140d887): /admin/economy live behind ADMIN role
+  check, structural/raw Φ split with admin-adjustment gap panel. No longer a
+  launch blocker.
+- Notes editorial firewall complete: risk-aware summarizer + hard publish gate
+  (riskScore ≥ note_high_risk_threshold → BLOCKED_NEEDS_FRAMEWORK, fail-closed),
+  correction/right-of-reply workflow, soft-delete reject, retract/unpublish with
+  immutable NoteVersion snapshots, no-CP-clawback on retraction.
+- CP economy foundation: EconParam config, diminishing content faucet + caps,
+  Φ measurement instrument (throttle-off). Faucets live: verified_read,
+  group_buy_reward. Sinks live: delivery_fee_waiver, secret_menu_redeem.
+  Wallet UI: header badge + /wallet history.
+- seed.ts updated: restaurant_owner + courier seeding added (uncommitted as of
+  last session — check git status).
 
-## Current build state (as of 2026-06-13)
-
-### What's built and live
-
-**Group Buy (Steps 1–7 complete, verified)**
-- Deal CRUD (DRAFT → OPEN → CLOSING_SUCCESS/FAILED → FULFILLING → COMPLETED/CANCELLED)
-- Member join/leave with Stripe manual-capture
-- Admin dashboard, supplier CRUD, deal CRUD, order management, pickup marking
-- Deal closure cron: threshold check → capture → CP vest (`group_buy_reward` 330 CP per order) → email
-- Email flows: order authorized, deal closed success/failed, pickup reminder
-- Recovery flow for capture-failed orders
-- Password reset
-
-**Delivery (live, connected to main nav)**
-- Customer: restaurant listing → menu browser → cart → checkout (Stripe immediate capture) → confirmation/tracker
-- Kitchen: real-time order feed, accept/reject/cook/ready/cancel, driver PIN, dev controls
-- Driver: online/offline toggle, claim order, trip flow
-- Dispatch cron: PENDING → internal driver or Uber stub after 3-min timeout
-- CP delivery-fee waiver: burn at settlement (`delivery_fee_waiver`)
-- CP secret-menu redemption: `redemptionKey` uniqueness guard; burn at settlement (`secret_menu_redeem`)
-- Dev settle trigger: `POST /api/dev/settle-delivery-payment`
-
-**Neighbours Notes (intelligence pipeline built)**
-- Sources: CBC Ottawa RSS, Ottawa Citizen RSS, Open Ottawa road events + dev applications
-- Pipeline: hourly ingest → Gemini 2.5 Flash summarization + risk scoring + category tagging → admin review
-- Admin: `/admin/notes` review queue, `/admin/corrections`, `/admin/submissions`
-- Public: `/notes` feed with severity indicators
-- Subscribers: double opt-in (CASL), daily digest 7am ET, urgent alerts
-- Business submissions: `/notes/submit` → admin review → "Local Business" badge
-- Correction/right-of-reply: `NoteCorrection` model, admin review page
-
-**CP Economy (foundation built)**
-- `Wallet` + `WalletLedger` schema, `EconParam` config table
-- `earnCP` / `burnCP` — idempotent, overdraft-guarded
-- Content faucet: `earnVerifiedReadCP` — diminishing curve + daily/weekly caps + SELECT…FOR UPDATE atomicity
-- Φ governor: `measurePhi` — structural vs raw, 7-day rolling window, measurement-only
-- Admin Φ monitor: `app/admin/economy/page.tsx`
-- Wallet UI: `app/wallet/page.tsx`, header badge
-
-### What's NOT yet built / wired
-
-- `tier_bridge`, `signup_bonus` earn paths (reason declared, no call site)
-- Civic sink (`donation`) — disabled gate, no funded campaign
-- Φ throttle — observe-only (D-2 required)
-- Real Uber Direct API (stub in place)
-- Object storage for photo proof
-- GPS driver tracking
-- Stripe Connect for driver payouts
-- `MerchantPayout` model and Group Buy Merchant Economics
-- `merchant_bounty` + `referral_verified` reasons
-
-### Uncommitted baseline
-
-Check `git status` at session start. The last known uncommitted change was an update to `prisma/seed.ts` adding `restaurantOwner` + `courierUser` seeding — verify it was committed or is still pending.
+**Deferred / decided-but-not-built:**
+- Civic sink (donation reason): deferred past pilot — charitable-solicitation
+  exposure; needs counsel.
+- Commerce-weighted group_buy_reward: stays flat; watch real Φ first.
+- §8 real-backing ceiling: now that cp_to_dollar_rate exists, enforcement of
+  the emission ceiling is unbuilt — deferred to post-pilot.
+- Φ throttle automation: measurement only until real Φ history.
+- tier_bridge, signup_bonus: CPReason declared, no call sites.
 
 ---
 
-## Conventions checklist (confirm before any code)
+## NEXT TASK
 
-- [ ] Read the Engagement Pattern Standard (`docs/engagement-pattern-standard.md`) if the task touches UX or CP incentives
-- [ ] One logical task, one commit
-- [ ] Run `npx tsc --noEmit` before committing
-- [ ] After Prisma schema changes: `npx prisma migrate dev --name <description>`, then restart the dev server
-- [ ] Do NOT substitute packages, OAuth providers, or image upload services without discussion
-- [ ] Do NOT add Twilio, Cloudinary, or bulk pickup actions
-- [ ] Surface policy decisions (civic sink budget, take-rate, HIGH-risk publish) rather than defaulting
+**End-to-end verification pass** — work through docs/verification-checklist.md
+top to bottom in the DEV environment. This is a manual QA task (you clicking,
+not Claude coding). Bring back failures with: which step, what you saw vs.
+expected, and the relevant DB row state. The two signals to watch are webhook
+reliability (feeds launch-blocker 1.3) and cart persistence on hard reload
+(feeds launch-blocker 1.4).
+
+---
+
+## ROADMAP AFTER THE VERIFICATION PASS (rough order)
+
+1. Triage verification failures — fix real bugs, note env quirks.
+2. Cart persistence — server-side or session-backed cart (currently localStorage,
+   clears on sign-out).
+3. Auth shakeout — confirm all role-gating paths work end-to-end on the deployed
+   env (proxy.ts + per-route checks).
+4. Stripe webhook verified on deployed env — confirm payment_intent.succeeded
+   fires and settles delivery orders without the dev trigger.
+5. Commerce-weighted group_buy_reward (after watching real Φ) + §8 real-backing
+   ceiling enforcement.
+6. Civic sink (with counsel on solicitation framing).
+7. Remaining pre-launch hardening: real Uber Direct API, object storage for
+   delivery photos, production deploy config, delete old prototype routes
+   (app/restaurants/, app/menu/, app/driver/, app/partner/, app/checkout/).
+8. Φ throttle activation (after calibration on real data).
