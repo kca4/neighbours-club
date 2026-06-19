@@ -70,6 +70,7 @@ Items are numbered for reference. DONE items are kept so the list is a complete 
 | 2.9 | **GPS / live driver tracking** — customer tracker page polls status; no coordinate tracking. | Code — deferred |
 | 2.10 | **Stripe Connect for driver payouts** | Code — depends on D-8 |
 | 2.11 | **Partner onboarding CTA** — `/delivery/dashboard` empty-state links back to `/delivery` as placeholder | Code |
+| 2.12 | **Dispatch auto-escalation (RESOLVED, commit 0abcb93)**: the dispatch cron previously auto-escalated unclaimed internal orders to the Uber Direct stub after a hardcoded 3 minutes — a hazard for the internal-courier pilot, since unclaimed orders would strand in a fake fallback and leave the driver feed. Now gated behind ENABLE_UBER_ESCALATION (default OFF); when off, unclaimed PENDING/INTERNAL orders stay on the internal driver feed indefinitely. Timeout configurable via UBER_ESCALATION_TIMEOUT_MINUTES (default 3 min) for when real Uber Direct is integrated. TODO before enabling Uber: real shippingAdapter implementation + sensible timeout, then set ENABLE_UBER_ESCALATION=true. | Code |
 
 ---
 
