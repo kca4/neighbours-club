@@ -14,6 +14,9 @@
 - Secret Menu section placement is below the full regular menu, easy to miss.
   Consider a higher entry point for discoverability (without undercutting the
   "secret" feel). Priority: low.
+- The reject action button on /admin/notes is labeled "Delete" but performs a
+  soft-delete (status REJECTED, row preserved). Label is misleading — consider
+  renaming to "Reject" to match behavior. Priority: low.
 
 ## Verified passing
 - Section 1: full delivery lifecycle (browse→pay→settle→kitchen→dispatch→driver→
@@ -23,3 +26,10 @@
 - Section 3: secret redemption — burn, kitchen "Paid with CP" display, repeat
   purchase, can't-afford disabled state. Crash-recovery logic verified via unit
   tests + section-2 idempotency proof.
+- Section 5: Notes editorial firewall — HIGH-risk publish gate refuses (score-7
+  note cannot be approved); blocked/non-approved notes excluded from public feed;
+  clean low-risk note approves with attribution; correction request +
+  right-of-reply renders publicly; provisional unpublish removes from feed;
+  reject is soft-delete (row preserved, status REJECTED); retraction marks (not
+  deletes) + writes NoteVersion + NO CP CLAWBACK (James earned 100 CP on verify,
+  retraction left his balance and ledger row untouched).
