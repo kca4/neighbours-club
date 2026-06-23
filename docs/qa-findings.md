@@ -1,5 +1,26 @@
 # QA Verification Pass — Findings
 
+## Verification pass — COMPLETE
+All sections (1-8) verified. Summary:
+- PASSING: delivery lifecycle, fee-waiver sink, secret-menu sink, Notes editorial
+  firewall, verified-read faucet, wallet/Φ observability, role gating, group-buy
+  cron.
+- FIXED during pass: dispatch auto-escalation launch blocker (commit 0abcb93).
+- The idempotency guard (@@unique[walletId,referenceId,reason] + closingProcessedAt
+  sentinel) proven LIVE on every settlement path: fee waiver (no double-burn),
+  secret menu (recovery), verified-read (no double-mint), group-buy cron (no
+  double-process).
+
+## Fix list before launch (priority order)
+1. [medium-high] Header CP badge doesn't auto-update after any CP action — needs
+   router.refresh()/revalidation. Affects every CP action.
+2. [medium] Verified-read toast says "Points earned!" even at 0 CP — should reflect
+   actual result. On-thesis (no-deception) fix.
+3. [verify] Cart persistence — architecture doc says localStorage; confirm it
+   survives hard reload (may already be handled; was listed as a blocker).
+4. [low] "Delete" button on /admin/notes does soft-delete — rename to "Reject".
+5. [low] Secret Menu placement below full menu — consider higher entry point.
+
 ## Fixed
 - Dispatch auto-escalation to Uber stub after 3 min (launch blocker) — FIXED,
   commit 0abcb93, gated behind ENABLE_UBER_ESCALATION (default off).
@@ -32,6 +53,14 @@
 - Section 3: secret redemption — burn, kitchen "Paid with CP" display, repeat
   purchase, can't-afford disabled state. Crash-recovery logic verified via unit
   tests + section-2 idempotency proof.
+- Section 4: Group buy settlement — close-deals cron runs clean against real data.
+  Correctly closed a past-deadline OPEN deal via the FAILURE branch (olive-oil
+  deal: confirmedCount 2 < threshold 20 → CLOSED_FAILED, 2 orders voided, no
+  erroneous capture). Cron idempotency CONFIRMED LIVE: second run returned
+  processed:0, did not reprocess the closed deal. Success-branch capture + 330 CP
+  vesting covered by unit tests + the @@unique idempotency guard proven live in
+  sections 2/3/6; full success-path staging deferred (low value + local Stripe
+  manual-capture limitation).
 - Section 5: Notes editorial firewall — HIGH-risk publish gate refuses (score-7
   note cannot be approved); blocked/non-approved notes excluded from public feed;
   clean low-risk note approves with attribution; correction request +

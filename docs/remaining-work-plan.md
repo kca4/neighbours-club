@@ -41,7 +41,7 @@ Items are numbered for reference. DONE items are kept so the list is a complete 
 | # | Item | Status |
 |---|---|---|
 | 1.1 | **Φ admin route** — Φ readout behind the ADMIN role check (not a dev-only 404 in production). Solvency control must be accessible on the deployed env. | **DONE** (commit 140d887) |
-| 1.2 | **End-to-end verification pass** — work through docs/verification-checklist.md in DEV, section by section. Bring back failures for triage. | **NOT DONE** |
+| 1.2 | **End-to-end verification pass** — work through docs/verification-checklist.md in DEV, section by section. Bring back failures for triage. | **DONE** (all 8 sections; see docs/qa-findings.md) |
 | 1.3 | **Stripe webhook verified on deployed env** — confirm `payment_intent.succeeded` fires and settles delivery orders without the dev trigger on the real Vercel deployment. The webhook is unreliable locally (expected); this must work in production. | NOT DONE |
 | 1.4 | **Cart persistence** — currently `localStorage` (clears on sign-out / hard reload). Needs server-side or session-backed cart before production. | NOT DONE |
 | 1.5 | **Auth shakeout** — role-gating works in code; confirm it holds end-to-end on the deployed env: proxy.ts redirects, per-route 403s, nav link visibility, sign-out callbackUrl. Section 8 of the verification checklist feeds this. | NOT DONE |
