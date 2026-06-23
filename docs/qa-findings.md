@@ -5,10 +5,16 @@
   commit 0abcb93, gated behind ENABLE_UBER_ESCALATION (default off).
 
 ## Open — to fix before launch
-- Header CP badge does not auto-update after CP-changing actions (verified read,
-  secret redemption, fee waiver) — requires manual page reload. Affects every CP
-  action; risks users doubting their points registered. Likely missing
-  router.refresh()/revalidation after the mutation. Priority: medium-high (trust).
+- Header CP badge does not auto-update after ANY CP-changing action (verified
+  read, redemption, fee waiver) — confirmed across all three. Requires manual
+  reload. Likely missing router.refresh()/revalidation after the mutation.
+  Priority: medium-high (affects every CP action; risks users doubting points
+  registered).
+- Verified-read success toast shows "Points earned!" even when 0 CP are minted
+  (e.g. daily curve exhausted, or already-read note). Misleading — should reflect
+  the actual result ("You've reached today's reading limit" / "already counted").
+  On-thesis fix: the no-deception platform shouldn't show a false reward
+  confirmation. Priority: medium (small but trust-relevant).
 
 ## Open — polish
 - Secret Menu section placement is below the full regular menu, easy to miss.
@@ -33,3 +39,9 @@
   reject is soft-delete (row preserved, status REJECTED); retraction marks (not
   deletes) + writes NoteVersion + NO CP CLAWBACK (James earned 100 CP on verify,
   retraction left his balance and ledger row untouched).
+- Section 6: Verified-read diminishing faucet — full curve confirmed LIVE as
+  aisha (fresh user): 1st read +100, 2nd +33, 3rd–5th +8 each, 6th +0 (0-CP
+  read still writes a ledger row). Total 157 CP, within the 185 daily cap (no
+  clip). No-double-mint confirmed: re-verifying an already-read note pays
+  nothing, one ledger row, balance unchanged (@@unique idempotency guard holds —
+  same guarantee as fee waiver and secret menu).
