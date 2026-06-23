@@ -13,6 +13,7 @@
     "dispatch:sweep": "curl -s -H \"Authorization: Bearer $CRON_SECRET\" http://localhost:3000/api/dispatch/cron-sweep | cat",
     "verify:cp": "NODE_OPTIONS=\"--conditions=react-server\" tsx scripts/verify-cp.ts",
     "seed:test-note": "tsx prisma/seeds/test-note.ts",
+    "seed:test-notes-faucet": "tsx prisma/seeds/test-notes-faucet.ts",
     "test": "vitest run"
   },
   "prisma": {
