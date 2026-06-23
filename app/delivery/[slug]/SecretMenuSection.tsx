@@ -40,8 +40,8 @@ export default function SecretMenuSection({ items, walletBalance }: Props) {
     startTransition(async () => {
       const result = await redeemSecretItem(itemId);
       if (result.ok) {
-        // Refresh the server-rendered header CP badge before navigating.
-        router.refresh();
+        // revalidatePath('/', 'layout') is called inside redeemSecretItem on
+        // the server — no client router.refresh() needed here.
         router.push(`/delivery/checkout/confirmation?orderId=${result.orderId}`);
       } else {
         setErrors((prev) => ({ ...prev, [itemId]: result.error }));

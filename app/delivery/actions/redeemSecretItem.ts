@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from 'next/cache';
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { burnCP } from "@/lib/cp";
@@ -191,6 +192,10 @@ export async function redeemSecretItem(menuItemId: string): Promise<RedeemResult
     },
   });
 
+  // CP burned — mark root-layout RSC cache stale so the Header badge reflects
+  // the new balance. The client's router.push() to the confirmation page will
+  // trigger a fresh layout render, picking this up automatically.
+  revalidatePath('/', 'layout');
   return { ok: true, orderId };
 }
 

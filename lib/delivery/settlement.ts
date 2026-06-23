@@ -13,6 +13,7 @@
  */
 import 'server-only'
 
+import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { DeliveryOrderStatus } from '@prisma/client'
 import { burnCP, InsufficientBalanceError } from '@/lib/cp'
@@ -70,6 +71,13 @@ export async function settleDeliveryPayment(orderId: string): Promise<void> {
       data: { cpWaiverSettled: true },
     })
 
+    // Mark the root-layout RSC cache stale so the Header CP badge reflects the
+    // burn. Because this runs in a Stripe webhook (async, server-to-server),
+    // the user has already been redirected to the confirmation page before this
+    // fires — the badge update is visible on their NEXT navigation, not
+    // instantly on the page they are currently viewing. That is intentional;
+    // do not add polling or websockets here to make it immediate.
+    revalidatePath('/', 'layout')
     console.log(`[settlement] CP waiver settled for order ${orderId} (deduped: ${result.deduped})`)
   } catch (e) {
     if (e instanceof InsufficientBalanceError) {

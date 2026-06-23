@@ -17,6 +17,7 @@
  *    0 CP but still succeeds and is recorded.
  */
 
+import { revalidatePath } from 'next/cache';
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { earnVerifiedReadCP } from "@/lib/cp";
@@ -69,6 +70,9 @@ export async function verifyNote(noteId: string): Promise<VerifyNoteResult> {
       };
     }
 
+    // Balance changed — mark the root-layout RSC cache stale so the Header
+    // CP badge re-renders with the updated balance on the next navigation.
+    revalidatePath('/', 'layout');
     return { success: true, newBalance: result.newBalance };
   } catch (e) {
     // InsufficientBalanceError cannot occur on an earn. Any error here is
