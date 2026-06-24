@@ -16,8 +16,8 @@ All sections (1-8) verified. Summary:
    router.refresh()/revalidation. Affects every CP action.~~ **DONE** (commit 81747b9)
 2. ~~[medium] Verified-read toast says "Points earned!" even at 0 CP — should reflect
    actual result. On-thesis (no-deception) fix.~~ **DONE** (commit 5c88239)
-3. [verify] Cart persistence — architecture doc says localStorage; confirm it
-   survives hard reload (may already be handled; was listed as a blocker).
+3. ~~[verify] Cart persistence — architecture doc says localStorage; confirm it
+   survives hard reload (may already be handled; was listed as a blocker).~~ **DONE** (commit 14b1500)
 4. [low] "Delete" button on /admin/notes does soft-delete — rename to "Reject".
 5. [low] Secret Menu placement below full menu — consider higher entry point.
 
@@ -30,10 +30,10 @@ All sections (1-8) verified. Summary:
   cpAwarded; verifyNote returns outcome:'earned'|'exhausted'|'duplicate'; toast shows
   "You earned N CP · New balance: X CP", "reached today's reading limit", or
   "already credited" accordingly.
-
-## Open — to fix before launch
-- Cart persistence — architecture doc says localStorage; confirm it survives hard
-  reload (may already be handled; was listed as a blocker). Priority: verify.
+- Cart persistence across hard reload — FIXED, commit 14b1500; CartProvider now
+  hydrates from localStorage ('nc:cart') on mount and persists on every state change.
+  Save-before-load race guarded by a hydrated flag. Clear-on-empty removes the key
+  (no resurrection after checkout). Cross-restaurant "clear cart?" guard preserved.
 
 ## Open — polish
 - Secret Menu section placement is below the full regular menu, easy to miss.
