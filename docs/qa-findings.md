@@ -12,10 +12,10 @@ All sections (1-8) verified. Summary:
   double-process).
 
 ## Fix list before launch (priority order)
-1. [medium-high] Header CP badge doesn't auto-update after any CP action — needs
-   router.refresh()/revalidation. Affects every CP action.
-2. [medium] Verified-read toast says "Points earned!" even at 0 CP — should reflect
-   actual result. On-thesis (no-deception) fix.
+1. ~~[medium-high] Header CP badge doesn't auto-update after any CP action — needs
+   router.refresh()/revalidation. Affects every CP action.~~ **DONE** (commit 81747b9)
+2. ~~[medium] Verified-read toast says "Points earned!" even at 0 CP — should reflect
+   actual result. On-thesis (no-deception) fix.~~ **DONE** (commit 5c88239)
 3. [verify] Cart persistence — architecture doc says localStorage; confirm it
    survives hard reload (may already be handled; was listed as a blocker).
 4. [low] "Delete" button on /admin/notes does soft-delete — rename to "Reject".
@@ -24,18 +24,16 @@ All sections (1-8) verified. Summary:
 ## Fixed
 - Dispatch auto-escalation to Uber stub after 3 min (launch blocker) — FIXED,
   commit 0abcb93, gated behind ENABLE_UBER_ESCALATION (default off).
+- Header CP badge auto-refresh — FIXED, commit 81747b9; revalidatePath('/', 'layout')
+  called after every CP mutation (verified read, fee waiver, secret menu redemption).
+- Verified-read toast honesty — FIXED, commit 5c88239; FaucetResult now surfaces
+  cpAwarded; verifyNote returns outcome:'earned'|'exhausted'|'duplicate'; toast shows
+  "You earned N CP · New balance: X CP", "reached today's reading limit", or
+  "already credited" accordingly.
 
 ## Open — to fix before launch
-- Header CP badge does not auto-update after ANY CP-changing action (verified
-  read, redemption, fee waiver) — confirmed across all three. Requires manual
-  reload. Likely missing router.refresh()/revalidation after the mutation.
-  Priority: medium-high (affects every CP action; risks users doubting points
-  registered).
-- Verified-read success toast shows "Points earned!" even when 0 CP are minted
-  (e.g. daily curve exhausted, or already-read note). Misleading — should reflect
-  the actual result ("You've reached today's reading limit" / "already counted").
-  On-thesis fix: the no-deception platform shouldn't show a false reward
-  confirmation. Priority: medium (small but trust-relevant).
+- Cart persistence — architecture doc says localStorage; confirm it survives hard
+  reload (may already be handled; was listed as a blocker). Priority: verify.
 
 ## Open — polish
 - Secret Menu section placement is below the full regular menu, easy to miss.
