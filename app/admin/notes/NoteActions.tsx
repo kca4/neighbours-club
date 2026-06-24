@@ -39,13 +39,13 @@ export default function NoteActions({
             <span className="ml-1 opacity-70">(score: {riskScore})</span>
           )}
         </span>
-        {/* Reject remains available — admin can still hard-delete a blocked note */}
+        {/* Reject remains available — admin can still reject a blocked note (soft-delete) */}
         <button
           disabled={rejectPending}
           onClick={() => startReject(() => rejectNote(id))}
           className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {rejectPending ? "…" : "Delete"}
+          {rejectPending ? "…" : "Reject"}
         </button>
       </div>
     );
