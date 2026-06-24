@@ -9,7 +9,8 @@ import { verifyNote } from '@/app/actions/verify-note';
 
 type UIPhase =
   | { name: 'idle' }
-  | { name: 'earned'; newBalance: number }
+  | { name: 'earned'; cpAwarded: number; newBalance: number }
+  | { name: 'exhausted' }
   | { name: 'already_claimed' }
   | { name: 'error'; message: string; isAuthError: boolean };
 
@@ -31,7 +32,7 @@ export function VerifyReadButton({ noteId }: VerifyReadButtonProps) {
 
   function handleClick() {
     // Prevent double-submit: useTransition + state guard together.
-    if (isPending || phase.name === 'earned' || phase.name === 'already_claimed') return;
+    if (isPending || phase.name === 'earned' || phase.name === 'exhausted' || phase.name === 'already_claimed') return;
 
     startTransition(async () => {
       // noteId is the ONLY thing passed to the action.
@@ -39,10 +40,13 @@ export function VerifyReadButton({ noteId }: VerifyReadButtonProps) {
       const result = await verifyNote(noteId);
 
       if (result.success) {
-        if (result.alreadyClaimed) {
-          setPhase({ name: 'already_claimed' });
+        if (result.outcome === 'earned') {
+          setPhase({ name: 'earned', cpAwarded: result.cpAwarded, newBalance: result.newBalance });
+        } else if (result.outcome === 'exhausted') {
+          setPhase({ name: 'exhausted' });
         } else {
-          setPhase({ name: 'earned', newBalance: result.newBalance });
+          // outcome === 'duplicate'
+          setPhase({ name: 'already_claimed' });
         }
       } else {
         setPhase({
@@ -96,10 +100,23 @@ export function VerifyReadButton({ noteId }: VerifyReadButtonProps) {
             aria-hidden="true"
           />
           <span className="text-sm font-semibold" style={{ color: '#0F766E' }}>
-            Points earned!
+            You earned {phase.cpAwarded.toLocaleString()} CP
           </span>
           <span className="text-sm" style={{ color: '#0F766E', opacity: 0.75 }}>
             · New balance: {phase.newBalance.toLocaleString()} CP
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Exhausted (curve/cap reached — 0 CP minted) ───────────────────────────
+  if (phase.name === 'exhausted') {
+    return (
+      <div className="mt-8" role="status" aria-live="polite" aria-atomic="true">
+        <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-5 py-3.5">
+          <span className="text-sm font-medium text-gray-500">
+            You&apos;ve reached today&apos;s reading limit — no points this time
           </span>
         </div>
       </div>
@@ -116,7 +133,7 @@ export function VerifyReadButton({ noteId }: VerifyReadButtonProps) {
             aria-hidden="true"
           />
           <span className="text-sm font-medium text-gray-500">
-            Already earned for this note
+            You&apos;ve already been credited for this note
           </span>
         </div>
       </div>

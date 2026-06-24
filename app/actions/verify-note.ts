@@ -11,7 +11,7 @@
  *    Minting for DRAFT or REJECTED noteIds is blocked.
  *  - Idempotency is enforced inside earnVerifiedReadCP via the @@unique
  *    constraint on (walletId, referenceId, reason). A duplicate call returns
- *    alreadyClaimed without touching the balance.
+ *    outcome:'duplicate' without touching the balance.
  *  - The amount awarded is determined by the diminishing content-faucet curve
  *    and caps from EconParam — not a flat constant. A 6th+ daily read earns
  *    0 CP but still succeeds and is recorded.
@@ -25,8 +25,9 @@ import { earnVerifiedReadCP } from "@/lib/cp";
 // ─── Result type ──────────────────────────────────────────────────────────────
 
 export type VerifyNoteResult =
-  | { success: true; alreadyClaimed: true; message: string }
-  | { success: true; alreadyClaimed?: false; newBalance: number }
+  | { success: true; outcome: 'earned';    cpAwarded: number; newBalance: number }
+  | { success: true; outcome: 'exhausted'; newBalance: number }
+  | { success: true; outcome: 'duplicate' }
   | { success: false; error: string };
 
 // ─── Action ───────────────────────────────────────────────────────────────────
@@ -63,17 +64,20 @@ export async function verifyNote(noteId: string): Promise<VerifyNoteResult> {
     if (result.deduped) {
       // Same note verified twice by the same user — the original ledger row
       // already exists; balance is unchanged.
-      return {
-        success: true,
-        alreadyClaimed: true,
-        message: "You already earned points for this note.",
-      };
+      return { success: true, outcome: 'duplicate' };
     }
 
-    // Balance changed — mark the root-layout RSC cache stale so the Header
+    if (result.cpAwarded === 0) {
+      // New ledger row written but amount is 0: the curve is exhausted (6th+
+      // read today) or a daily/weekly cap was already reached. Balance is
+      // unchanged — no revalidation needed.
+      return { success: true, outcome: 'exhausted', newBalance: result.newBalance };
+    }
+
+    // Positive CP earned — mark the root-layout RSC cache stale so the Header
     // CP badge re-renders with the updated balance on the next navigation.
     revalidatePath('/', 'layout');
-    return { success: true, newBalance: result.newBalance };
+    return { success: true, outcome: 'earned', cpAwarded: result.cpAwarded, newBalance: result.newBalance };
   } catch (e) {
     // InsufficientBalanceError cannot occur on an earn. Any error here is
     // unexpected. Log server-side; return a generic message to avoid leaking

@@ -33,7 +33,14 @@ import {
   getWeekStartUTC,
   clampToCap,
 } from './faucet-math'
-import type { CPResult } from './types'
+
+// Local result type — extends the shared CPResult shapes with cpAwarded so
+// callers can distinguish a 0-CP grant (curve/cap exhausted) from a positive
+// grant, without modifying the shared CPResult in lib/cp/types.ts (which would
+// affect earnCP/burnCP unnecessarily).
+type FaucetResult =
+  | { ok: true; deduped: false; newBalance: number; cpAwarded: number }
+  | { ok: true; deduped: true }
 
 // Prisma transaction client type (connection/lifecycle methods excluded)
 type TxClient = Omit<
@@ -59,12 +66,12 @@ export interface EarnVerifiedReadParams {
  *  • SELECT … FOR UPDATE on the wallet row prevents the concurrent-n=0 race.
  *
  * Returns:
- *  { ok: true, deduped: false, newBalance: number } — grant recorded (amount ≥ 0)
- *  { ok: true, deduped: true }                      — duplicate call, no change
+ *  { ok: true, deduped: false, cpAwarded: number, newBalance: number } — grant recorded (cpAwarded ≥ 0)
+ *  { ok: true, deduped: true }                                         — duplicate call, no change
  */
 export async function earnVerifiedReadCP(
   params: EarnVerifiedReadParams,
-): Promise<CPResult> {
+): Promise<FaucetResult> {
   const { userId, noteId } = params
   const referenceId = `verified_read:${userId}:${noteId}`
 
@@ -203,7 +210,7 @@ export async function earnVerifiedReadCP(
           data: { balanceCP: { increment: amount } },
           select: { balanceCP: true },
         })
-        return { ok: true, deduped: false, newBalance: updated.balanceCP } satisfies CPResult
+        return { ok: true, deduped: false, newBalance: updated.balanceCP, cpAwarded: amount } satisfies FaucetResult
       }
 
       // 0-CP grant: balance is unchanged; return the current cached value.
@@ -211,7 +218,7 @@ export async function earnVerifiedReadCP(
         where: { id: wallet.id },
         select: { balanceCP: true },
       })
-      return { ok: true, deduped: false, newBalance: unchanged.balanceCP } satisfies CPResult
+      return { ok: true, deduped: false, newBalance: unchanged.balanceCP, cpAwarded: 0 } satisfies FaucetResult
     })
   } catch (e) {
     if (
@@ -220,7 +227,7 @@ export async function earnVerifiedReadCP(
     ) {
       // Duplicate (walletId, referenceId, reason) — already recorded.
       // The previous call's amount (whatever it was) stands.
-      return { ok: true, deduped: true } satisfies CPResult
+      return { ok: true, deduped: true } satisfies FaucetResult
     }
     throw e
   }
