@@ -4,9 +4,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useReducer,
   useState,
 } from "react";
+
+const CART_STORAGE_KEY = 'nc:cart';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,7 +42,8 @@ type CartAction =
   | { type: "UPDATE_QUANTITY"; itemId: string; quantity: number }
   | { type: "REMOVE_ITEM"; itemId: string }
   | { type: "CLEAR_CART" }
-  | { type: "_REPLACE_CART"; item: CartItem; restaurant: RestaurantInfo };
+  | { type: "_REPLACE_CART"; item: CartItem; restaurant: RestaurantInfo }
+  | { type: "_RESTORE_CART"; savedState: CartState };
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
@@ -93,6 +97,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         restaurantSlug: action.restaurant.slug,
         items: [action.item],
       };
+    case "_RESTORE_CART":
+      return action.savedState;
   }
 }
 
@@ -183,8 +189,40 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, emptyState);
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  // hydrated gates the persistence effect so the initial emptyState render
+  // never overwrites a saved cart before the hydration effect has run.
+  const [hydrated, setHydrated] = useState(false);
 
-const itemCount = state.items.reduce((sum, i) => sum + i.quantity, 0);
+  // ① Hydrate from localStorage once on mount (client-only — effects never
+  //    run during SSR, so localStorage is always available here).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CART_STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as CartState;
+        if (Array.isArray(saved.items)) {
+          dispatch({ type: "_RESTORE_CART", savedState: saved });
+        }
+      }
+    } catch {
+      // Corrupt storage — start fresh; the next write will overwrite it.
+    }
+    setHydrated(true);
+  }, []);
+
+  // ② Persist on every state change, but only after hydration has completed.
+  //    When the cart is empty (after checkout or explicit clear), remove the
+  //    key entirely so a reload does not resurrect a stale cart.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (state.items.length === 0) {
+      localStorage.removeItem(CART_STORAGE_KEY);
+    } else {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(state));
+    }
+  }, [state, hydrated]);
+
+  const itemCount = state.items.reduce((sum, i) => sum + i.quantity, 0);
   const subtotal = state.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
   const addItem = useCallback(
