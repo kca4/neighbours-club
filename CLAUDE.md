@@ -118,6 +118,27 @@ Each step is a clean git commit:
 - `3f69904` — Delivery Phase 4: driver dispatch, Uber fallback stub, order tracking
 - `630e91b` — Fix: remove duplicate delivery webhook handler from group-buy route
 - `75e0bd2` — Delivery Phase 5: connect delivery vertical to main navigation (role-aware nav links)
+- `2400a4b` — Delivery Phase 5 (cont.): role-aware nav links wired
+- `c788f80` — CP infrastructure: Wallet, WalletLedger, earnCP/burnCP, group-buy rewards, verified-read action
+- `6ed848f` — CP Wallet UI: header CP badge + /wallet history page
+- `9160d63` — CP EconParam config model (flat key/value, all [TUNABLE] tokenomics values)
+- `86fa67a` — CP diminishing content faucet + daily/weekly caps (Spec §4–§5)
+- `8375484` — CP Φ inflation measurement — instrument-only, throttle unbuilt (Spec §7)
+- `e9f1f01` — Notes governance schema: status enum extension, attribution fields, correction + version audit models
+- `490e98d` — Notes risk-aware summarizer, hard publish gate, pure gate tests
+- `7c48af4` — Notes Prompt 4A: correction workflow (Parts 1–3)
+- `e6509b7` — Notes Prompt 4B: retraction, unpublish, right-of-reply (Parts 4–5)
+- `24a4ea6` — CP core/index split: fix broken HEAD, rename delivery_waiver reason, add manual_grant
+- `8133306` — Delivery CP fee-waiver: checkout integration + post-payment settlement
+- `84372b6` — Delivery CP secret-menu redemption: burn-to-unlock flow + kitchen display
+- `140d887` — Economy: promote Φ monitor to admin page (structural/raw split)
+- `9a14e11` — CP: adopt $0.01/CP rate — rescale all faucet/sink values
+- `0abcb93` — Fix(dispatch): gate Uber escalation behind ENABLE_UBER_ESCALATION flag (default off)
+- `81747b9` — Fix(cp): revalidate header balance after all CP mutations
+- `5c88239` — Fix(cp): honest verified-read toast reflecting actual CP minted
+- `14b1500` — Fix(cart): persist cart across reload via localStorage hydration
+- `036b4ba` — Fix(notes): rename misleading 'Delete' button to 'Reject' (soft-delete both paths)
+- `9a1a037` — Docs: path-to-pilot stock-take after verification pass + fixes
 
 Steps 2 and 3 were folded into earlier commits.
 
