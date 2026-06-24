@@ -17,7 +17,7 @@ All sections (1-8) verified. Summary:
 2. ~~[medium] Verified-read toast says "Points earned!" even at 0 CP — should reflect
    actual result. On-thesis (no-deception) fix.~~ **DONE** (commit 5c88239)
 3. ~~[verify] Cart persistence — architecture doc says localStorage; confirm it
-   survives hard reload (may already be handled; was listed as a blocker).~~ **DONE** (commit 14b1500)
+   survives hard reload (may already be handled; was listed as a blocker).~~ **DONE** (commit 14b1500) — **LIVE-CONFIRMED**: all three checks pass (survives hard reload; does not resurrect after order checkout; cross-restaurant "clear cart?" guard intact).
 4. [low] "Delete" button on /admin/notes does soft-delete — rename to "Reject".
 5. [low] Secret Menu placement below full menu — consider higher entry point.
 
@@ -36,9 +36,18 @@ All sections (1-8) verified. Summary:
   (no resurrection after checkout). Cross-restaurant "clear cart?" guard preserved.
 
 ## Open — polish
+
+### Discoverability
 - Secret Menu section placement is below the full regular menu, easy to miss.
   Consider a higher entry point for discoverability (without undercutting the
   "secret" feel). Priority: low.
+- No persistent cart indicator in the UI. The cart ("View order" bar) is only
+  visible when items are present; when empty there is no cart affordance (no cart
+  icon in the header, unlike DoorDash/Uber Eats convention). Not a bug — cart
+  works correctly — but a discoverability gap. Consider a persistent header cart
+  indicator. Priority: low (UX polish, product decision).
+
+### Labels / copy
 - The reject action button on /admin/notes is labeled "Delete" but performs a
   soft-delete (status REJECTED, row preserved). Label is misleading — consider
   renaming to "Reject" to match behavior. Priority: low.
