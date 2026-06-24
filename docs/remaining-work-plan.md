@@ -1,8 +1,36 @@
 # Remaining Work Plan — Path to Operational Pilot
 
 **Project:** Neighbours Club  
-**Last updated:** 2026-06-13  
+**Last updated:** 2026-06-24  
 **Posture:** Greenfield, single owner, no live users. Foundation-first (CP ledger is the spine). One logical task per session, commit before switching.
+
+---
+
+## Path to Pilot — current critical path
+
+Verification pass complete; all launch-grade findings fixed. Remaining work is mostly OPS and DECISIONS, not engineering. The big engineering risks are retired.
+
+### Critical path (blocks pilot)
+
+1. **Feed-licensing answer for Notes ingest** (Tier 0 decision/legal) — HIGHEST PRIORITY because it's the only item that could force a vertical rebuild (link-out/community-submission pivot if CBC/Ottawa Citizen terms disallow AI summarization). Resolve EARLY. Not code.
+2. **Production deploy config** — live Stripe keys, prod webhook endpoint, prod DB (Neon), `CRON_SECRET` + Vercel cron jobs configured. Gate for everything below.
+3. **Verify Stripe webhook works on the deployed env** — the one money-settling path never tested live (dev trigger used throughout). Only testable post-deploy. Do NOT soft-launch until a real order settles via the real webhook.
+4. **Operational delivery loop** — confirm real couriers/restaurants can run the flow (software path verified; this is the pilot operationally). Internal-courier path only; Uber escalation correctly gated off — real Uber Direct NOT needed for pilot.
+
+### Needed soon (not day-one blocking)
+
+- **Object storage for delivery photos** — stub currently non-functional; pilot can start without photos.
+- **Stripe Connect merchant payouts** — settle merchants MANUALLY for pilot; real integration required before scaling (gap vs. the go-to-market thesis).
+- **Delete old prototype routes** — housekeeping (`app/restaurants/`, `app/menu/`, `app/driver/`, `app/partner/`, `app/checkout/`).
+
+### Decisions (yours / counsel's — gate the pitch more than the pilot)
+
+- **Take-rate policy** — set a number for the pilot; load-bearing for the pitch.
+- **Civic sink / commerce-weighting / Φ throttle** — correctly deferred post-pilot.
+
+### Retired risks (done)
+
+Verification pass, cart persistence, CP-feedback honesty, dispatch escalation gating, Φ admin readout.
 
 ---
 
