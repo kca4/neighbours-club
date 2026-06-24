@@ -18,7 +18,7 @@ All sections (1-8) verified. Summary:
    actual result. On-thesis (no-deception) fix.~~ **DONE** (commit 5c88239)
 3. ~~[verify] Cart persistence — architecture doc says localStorage; confirm it
    survives hard reload (may already be handled; was listed as a blocker).~~ **DONE** (commit 14b1500) — **LIVE-CONFIRMED**: all three checks pass (survives hard reload; does not resurrect after order checkout; cross-restaurant "clear cart?" guard intact).
-4. [low] "Delete" button on /admin/notes does soft-delete — rename to "Reject".
+4. ~~[low] "Delete" button on /admin/notes does soft-delete — rename to "Reject".~~ **DONE** (commit 036b4ba) — confirmed no genuine hard-delete exists; `rejectNote` is soft-delete in both paths (normal and high-risk/blocked).
 5. [low] Secret Menu placement below full menu — consider higher entry point.
 
 ## Fixed
@@ -30,6 +30,7 @@ All sections (1-8) verified. Summary:
   cpAwarded; verifyNote returns outcome:'earned'|'exhausted'|'duplicate'; toast shows
   "You earned N CP · New balance: X CP", "reached today's reading limit", or
   "already credited" accordingly.
+- Admin notes "Delete" → "Reject" label — FIXED, commit 036b4ba; `rejectNote` is a soft-delete (status REJECTED, row preserved) in both the normal path and the high-risk/blocked path. No genuine hard-delete exists.
 - Cart persistence across hard reload — FIXED, commit 14b1500; CartProvider now
   hydrates from localStorage ('nc:cart') on mount and persists on every state change.
   Save-before-load race guarded by a hydrated flag. Clear-on-empty removes the key
@@ -48,9 +49,9 @@ All sections (1-8) verified. Summary:
   indicator. Priority: low (UX polish, product decision).
 
 ### Labels / copy
-- The reject action button on /admin/notes is labeled "Delete" but performs a
+- ~~The reject action button on /admin/notes is labeled "Delete" but performs a
   soft-delete (status REJECTED, row preserved). Label is misleading — consider
-  renaming to "Reject" to match behavior. Priority: low.
+  renaming to "Reject" to match behavior. Priority: low.~~ **FIXED** (commit 036b4ba)
 
 ## Verified passing
 - Section 1: full delivery lifecycle (browse→pay→settle→kitchen→dispatch→driver→
