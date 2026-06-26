@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ingestRSSFeed, ingestOpenOttawa } from "@/lib/notes-ingest";
+import { ingestOpenOttawa } from "@/lib/notes-ingest";
 import { summarizeNewsItem } from "@/lib/notes-intelligence";
 import { getSourcePublisher } from "@/lib/notes-sources";
 import { getEconParam } from "@/lib/cp/econ-params";
@@ -12,17 +12,6 @@ import { generateNoteSlug } from "@/lib/slugify";
 const CONFIDENCE_FLOOR = 0.75;
 
 const AI_MODEL = "gemini-2.5-flash";
-
-const SOURCES = [
-  {
-    feedUrl: "https://www.cbc.ca/cmlink/rss-canada-ottawa",
-    sourceId: "cbc-ottawa",
-  },
-  {
-    feedUrl: "https://ottawacitizen.com/feed",
-    sourceId: "ottawa-citizen",
-  },
-];
 
 const API_SOURCES = [
   {
@@ -86,19 +75,6 @@ export async function POST(req: NextRequest) {
   let feedsProcessed = 0;
   let itemsIngested = 0;
   const feedErrors: { sourceId: string; error: string }[] = [];
-  for (const source of SOURCES) {
-    try {
-      const result = await ingestRSSFeed(source.feedUrl, source.sourceId);
-      feedsProcessed++;
-      itemsIngested += result.inserted;
-    } catch (err) {
-      console.error(`[ingest-notes] Failed to fetch feed ${source.sourceId}:`, err);
-      feedErrors.push({
-        sourceId: source.sourceId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
   for (const source of API_SOURCES) {
     try {
       const result = await ingestOpenOttawa(
