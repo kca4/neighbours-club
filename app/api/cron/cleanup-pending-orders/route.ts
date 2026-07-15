@@ -4,8 +4,12 @@ import { stripe } from "@/lib/stripe";
 import { OrderStatus } from "@prisma/client";
 
 export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-cron-secret");
-  if (!secret || secret !== process.env.CRON_SECRET) {
+  const cronSecret = req.headers.get("x-cron-secret");
+  const vercelCron = req.headers.get("x-vercel-cron");
+  const authorized =
+    vercelCron === "1" ||
+    (cronSecret && cronSecret === process.env.CRON_SECRET);
+  if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
