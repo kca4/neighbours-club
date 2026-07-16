@@ -38,15 +38,15 @@ export default function PrivacyPage() {
 
         <p>
           You have the right to access, correct, or request deletion of your personal
-          information. To exercise these rights, contact us at support@neighboursclub.ca.
+          information. To exercise these rights, contact us at support@neighborsclub.ca.
           [Full list of rights and procedures under Canadian privacy law to be completed.]
         </p>
       </div>
 
       <div className="mt-10 text-sm text-foreground/60">
         Questions? Email{" "}
-        <a href="mailto:support@neighboursclub.ca" className="text-primary hover:underline">
-          support@neighboursclub.ca
+        <a href="mailto:support@neighborsclub.ca" className="text-primary hover:underline">
+          support@neighborsclub.ca
         </a>
       </div>
     </main>

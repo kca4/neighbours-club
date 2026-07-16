@@ -31,7 +31,7 @@ export default function RefundPolicyPage() {
         <p>
           If a deal closes successfully and your payment is captured, refunds may be
           considered on a case-by-case basis for quality issues or fulfilment failures.
-          Please contact support@neighboursclub.ca within 7 days of your pickup date to
+          Please contact support@neighborsclub.ca within 7 days of your pickup date to
           initiate a refund request. [Detailed eligibility criteria and timelines to be
           completed.]
         </p>
@@ -46,8 +46,8 @@ export default function RefundPolicyPage() {
 
       <div className="mt-10 text-sm text-foreground/60">
         Questions? Email{" "}
-        <a href="mailto:support@neighboursclub.ca" className="text-primary hover:underline">
-          support@neighboursclub.ca
+        <a href="mailto:support@neighborsclub.ca" className="text-primary hover:underline">
+          support@neighborsclub.ca
         </a>
       </div>
     </main>

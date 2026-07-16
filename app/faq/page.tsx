@@ -21,7 +21,7 @@ const faqs: Array<{ q: string; a: string }> = [
   },
   {
     q: "Can I cancel after joining?",
-    a: "Yes — you can leave a deal any time before it closes. Your card hold will be released immediately. Once a deal closes and your payment is captured, cancellations are handled case by case — contact us at support@neighboursclub.ca.",
+    a: "Yes — you can leave a deal any time before it closes. Your card hold will be released immediately. Once a deal closes and your payment is captured, cancellations are handled case by case — contact us at support@neighborsclub.ca.",
   },
   {
     q: "What payment methods do you accept?",
@@ -33,7 +33,7 @@ const faqs: Array<{ q: string; a: string }> = [
   },
   {
     q: "How do I contact you?",
-    a: "Email us at support@neighboursclub.ca. We aim to respond within one business day.",
+    a: "Email us at support@neighborsclub.ca. We aim to respond within one business day.",
   },
 ];
 
@@ -56,8 +56,8 @@ export default function FaqPage() {
 
       <div className="mt-10 rounded-xl border border-foreground/10 bg-foreground/[0.02] p-6 text-center text-sm text-foreground/60">
         Still have questions?{" "}
-        <a href="mailto:support@neighboursclub.ca" className="font-medium text-primary hover:underline">
-          Email us at support@neighboursclub.ca
+        <a href="mailto:support@neighborsclub.ca" className="font-medium text-primary hover:underline">
+          Email us at support@neighborsclub.ca
         </a>
       </div>
     </main>

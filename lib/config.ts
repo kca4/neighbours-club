@@ -35,7 +35,7 @@ export const SUPPORT_PHONE = "(613) 555-0100";
  * Customer support email shown in driver help panel and elsewhere.
  * TODO: replace with real support email before launch.
  */
-export const SUPPORT_EMAIL = "support@neighboursclub.ca";
+export const SUPPORT_EMAIL = "support@neighborsclub.ca";
 
 /**
  * The day of the week restaurant partners receive payouts.

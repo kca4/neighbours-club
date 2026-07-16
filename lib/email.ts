@@ -11,7 +11,7 @@
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = process.env.EMAIL_FROM ?? "Neighbours Club <hello@neighboursclub.ca>";
+const FROM = process.env.EMAIL_FROM ?? "Neighbours Club <hello@neighborsclub.ca>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -285,7 +285,7 @@ export async function sendOrderCaptureFailed(params: {
     ])}
     ${p("Please complete your payment within <strong>48 hours</strong> to keep your spot in the deal.")}
     ${btn("Complete payment now", recoveryUrl)}
-    ${p("If you need help, reply to this email or contact us at support@neighboursclub.ca.", true)}
+    ${p("If you need help, reply to this email or contact us at support@neighborsclub.ca.", true)}
   `);
 
   await send({

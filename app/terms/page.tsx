@@ -45,8 +45,8 @@ export default function TermsPage() {
 
       <div className="mt-10 text-sm text-foreground/60">
         Questions? Email{" "}
-        <a href="mailto:support@neighboursclub.ca" className="text-primary hover:underline">
-          support@neighboursclub.ca
+        <a href="mailto:support@neighborsclub.ca" className="text-primary hover:underline">
+          support@neighborsclub.ca
         </a>
       </div>
     </main>
