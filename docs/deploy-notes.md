@@ -39,9 +39,34 @@
 - ALWAYS close the terminal after prod DB work so the prod DATABASE_URL doesn't linger.
 
 ## Known issues / pre-launch TODO
-- Neon free tier SUSPENDS compute when idle → first request after idle can 500 with "Can't reach database server." Fix before launch: Neon always-on setting (paid) or connection-retry handling. A cold-start 500 is a bad first impression for a pilot visitor.
+- Neon free tier SUSPENDS compute when idle → first request after idle can 500 with "Can't reach database server." **DECIDED — see "Neon cold-start strategy" section below.** Do not apply the env-var changes until the Pro upgrade redeploy.
 - Stripe: still in TEST mode / live-mode verification pending. The production webhook has NEVER been tested with a real order. Both webhook endpoints (`/api/stripe/webhook` for group-buy, `/api/webhooks/stripe` for delivery) must be registered in the Stripe Dashboard once live. Each endpoint has its own signing secret — set `STRIPE_WEBHOOK_SECRET_GROUPBUY` and `STRIPE_WEBHOOK_SECRET_DELIVERY` as separate Vercel env vars (see docs/stripe-webhook-setup.md). This is the last unverified money path — do NOT take real orders until a real order settles via the real webhook.
 - Env var `NEXT_PUBLIC_APP_URL` and `EMAIL_FROM` must point at neighborsclub.ca (real domain, American spelling).
+
+## Neon cold-start strategy (decided)
+
+**Problem:** Neon free tier suspends compute after 5 minutes idle. A suspended compute causes the first request to 500 with "Can't reach database server" (Prisma P1001).
+
+**Decision (2026-07-20):** Apply Options A + B as free env-var changes, bundled with the Pro upgrade redeploy — not before. Primary mitigation is Option D (free, comes with Pro). C and E are reserved.
+
+| Option | Description | Status |
+|---|---|---|
+| A | `&connect_timeout=15` appended to prod `DATABASE_URL` | Apply at Pro upgrade redeploy |
+| B | Switch prod `DATABASE_URL` to the **pooled** endpoint hostname | Apply at Pro upgrade redeploy |
+| C | Application-level retry wrapper in `lib/prisma.ts` (catches P1001, retries 2–3×) | Reserved — add only if A+B are insufficient after going live |
+| D | Per-minute dispatch cron (restored on Pro) hits DB every minute; Neon's 5-min suspend threshold means the compute stays warm during any active period | **Primary mitigation — free with Pro upgrade** |
+| E | Neon Launch (~$19/mo) or Scale (~$69/mo) to configure or disable suspend-on-idle | Deferred post-pilot, data-driven |
+
+**Pro-upgrade checklist addition** — after restoring the full cron schedule, also do these steps in the same sitting:
+
+1. In Vercel → Settings → Environment Variables → Production, update `DATABASE_URL`:
+   - Change the hostname from `ep-muddy-salad-ajq8swf3.c-3.us-east-2.aws.neon.tech` to `ep-muddy-salad-ajq8swf3-pooler.c-3.us-east-2.aws.neon.tech` (add `-pooler` before the region segment).
+   - Append `&connect_timeout=15` to the connection string (after the existing `?sslmode=require`).
+   - Result: `postgresql://...@ep-muddy-salad-ajq8swf3-pooler.c-3.us-east-2.aws.neon.tech/neondb?sslmode=require&connect_timeout=15`
+2. Run `vercel --prod` to deploy with the new env var.
+3. Verify neighborsclub.ca loads and reaches the DB (sign in, check the CP badge, load a deal).
+
+> **MIGRATIONS STILL USE THE DIRECT URL.** The pooled hostname change above is for app runtime only. When running `prisma migrate deploy`, always supply the direct (non-pooled) connection string as shown in the "Database operations" section above.
 
 ## Deploy checklist (for reference)
 1. Ensure migrations applied to prod DB (`prisma migrate deploy`, direct URL)
