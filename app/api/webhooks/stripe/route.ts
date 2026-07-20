@@ -6,7 +6,7 @@
  *   2. Run: stripe login
  *   3. Run: stripe listen --forward-to localhost:3000/api/webhooks/stripe
  *   4. Copy the webhook signing secret printed by the CLI (whsec_...)
- *      into your .env file as STRIPE_WEBHOOK_SECRET
+ *      into your .env file as STRIPE_WEBHOOK_SECRET_DELIVERY (or STRIPE_WEBHOOK_SECRET for legacy local dev)
  *   5. The CLI will forward all Stripe events to this endpoint.
  *
  * When stripe listen is unavailable locally, use the dev-only trigger instead:
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     event = stripe.webhooks.constructEvent(
       rawBody,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      (process.env.STRIPE_WEBHOOK_SECRET_DELIVERY ?? process.env.STRIPE_WEBHOOK_SECRET)!
     );
   } catch (err) {
     console.error("[delivery-webhook] Signature verification failed:", err);

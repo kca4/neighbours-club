@@ -40,7 +40,7 @@
 
 ## Known issues / pre-launch TODO
 - Neon free tier SUSPENDS compute when idle → first request after idle can 500 with "Can't reach database server." Fix before launch: Neon always-on setting (paid) or connection-retry handling. A cold-start 500 is a bad first impression for a pilot visitor.
-- Stripe: still in TEST mode / live-mode verification pending. The production webhook has NEVER been tested with a real order. Both webhook endpoints (`/api/stripe/webhook` for group-buy, `/api/webhooks/stripe` for delivery) must be registered in the Stripe Dashboard once live. This is the last unverified money path — do NOT take real orders until a real order settles via the real webhook.
+- Stripe: still in TEST mode / live-mode verification pending. The production webhook has NEVER been tested with a real order. Both webhook endpoints (`/api/stripe/webhook` for group-buy, `/api/webhooks/stripe` for delivery) must be registered in the Stripe Dashboard once live. Each endpoint has its own signing secret — set `STRIPE_WEBHOOK_SECRET_GROUPBUY` and `STRIPE_WEBHOOK_SECRET_DELIVERY` as separate Vercel env vars (see docs/stripe-webhook-setup.md). This is the last unverified money path — do NOT take real orders until a real order settles via the real webhook.
 - Env var `NEXT_PUBLIC_APP_URL` and `EMAIL_FROM` must point at neighborsclub.ca (real domain, American spelling).
 
 ## Deploy checklist (for reference)

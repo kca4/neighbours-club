@@ -264,7 +264,7 @@ Stripe test cards in use:
 These block public launch but not code progress:
 
 - Stripe live-mode verification for IREN Technologies Inc.
-- `neighboursclub.ca` domain registration
+- `neighborsclub.ca` domain registration
 - Resend custom domain verification (currently using `onboarding@resend.dev`)
 - Real legal pages (Terms, Privacy, Refund Policy) drafted by legal counsel — placeholders exist
 - Pickup location secured in Kanata

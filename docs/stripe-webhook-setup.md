@@ -19,7 +19,7 @@ In the Vercel dashboard → Project → Settings → Environment Variables, upda
 | Variable | Old value | New value |
 |---|---|---|
 | `STRIPE_SECRET_KEY` | `sk_test_...` | `sk_live_...` |
-| `STRIPE_PUBLISHABLE_KEY` | `pk_live_...` | `pk_live_...` |
+| `STRIPE_PUBLISHABLE_KEY` | `pk_test_...` | `pk_live_...` |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `pk_test_...` | `pk_live_...` (same value as above) |
 
 Get the live keys from: **Stripe Dashboard → Developers → API keys**.
@@ -45,7 +45,7 @@ Go to **Stripe Dashboard → Developers → Webhooks → Add endpoint**.
 - `charge.captured`
 - `charge.refunded`
 
-After saving, click **Reveal** to copy the **Signing secret** (`whsec_live_...`).
+After saving, click **Reveal** to copy the **Signing secret** (`whsec_live_...`). Keep this value — it goes into `STRIPE_WEBHOOK_SECRET_GROUPBUY` in Step 3.
 
 ### Webhook 2 — Delivery
 
@@ -58,19 +58,21 @@ After saving, click **Reveal** to copy the **Signing secret** (`whsec_live_...`)
 - `payment_intent.succeeded`
 - `payment_intent.payment_failed`
 
-After saving, click **Reveal** to copy the **Signing secret** (`whsec_live_...`).
+After saving, click **Reveal** to copy the **Signing secret** (`whsec_live_...`). Keep this value — it goes into `STRIPE_WEBHOOK_SECRET_DELIVERY` in Step 3.
 
-> **Note:** The two endpoints produce two separate signing secrets. Each must go into the same `STRIPE_WEBHOOK_SECRET` env var — but there is only one variable. Both routes currently read the same `STRIPE_WEBHOOK_SECRET`. If Stripe issues different secrets per endpoint you must pick one and re-key the other, or split into `STRIPE_WEBHOOK_SECRET_GROUPBUY` / `STRIPE_WEBHOOK_SECRET_DELIVERY` and update the route handlers accordingly before going live.
+> **Important:** Stripe issues a separate signing secret for each registered endpoint. Both routes have been updated to read their own env var, with a fallback to the legacy `STRIPE_WEBHOOK_SECRET` for local dev. In production you **must** set both new vars — using a single shared secret would cause one endpoint to fail signature verification.
 
 ---
 
-## Step 3 — Copy the signing secret into Vercel
+## Step 3 — Copy the signing secrets into Vercel
 
-In Vercel → Settings → Environment Variables, set for **Production**:
+In Vercel → Settings → Environment Variables, set all three for the **Production** environment:
 
-| Variable | Value |
-|---|---|
-| `STRIPE_WEBHOOK_SECRET` | `whsec_live_...` (from Step 2) |
+| Variable | Value | Source |
+|---|---|---|
+| `STRIPE_WEBHOOK_SECRET_GROUPBUY` | `whsec_live_...` | Signing secret from Webhook 1 (group buy) |
+| `STRIPE_WEBHOOK_SECRET_DELIVERY` | `whsec_live_...` | Signing secret from Webhook 2 (delivery) |
+| `STRIPE_WEBHOOK_SECRET` | *(leave as your test `whsec_...` or clear it)* | Legacy — only used locally when the specific vars above are unset |
 
 Trigger a redeployment after saving (Vercel does not auto-redeploy on env var changes alone).
 
