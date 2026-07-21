@@ -296,42 +296,43 @@ function PinInput({
 }
 
 // ─── PhotoCapture ─────────────────────────────────────────────────────────────
+// Holds a File for uploading and a local object-URL for preview only.
+// The preview URL is created client-side and never sent to the server.
 
 function PhotoCapture({
-  photoDataUri,
+  file,
+  previewUrl,
   onChange,
+  onClear,
   disabled,
 }: {
-  photoDataUri: string | null;
-  onChange: (dataUri: string | null) => void;
+  file: File | null;
+  previewUrl: string | null;
+  onChange: (file: File, previewUrl: string) => void;
+  onClear: () => void;
   disabled: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = ev.target?.result;
-      if (typeof result === "string") onChange(result);
-    };
-    reader.readAsDataURL(file);
+    const picked = e.target.files?.[0];
+    if (!picked) return;
+    const url = URL.createObjectURL(picked);
+    onChange(picked, url);
   }
 
-  if (photoDataUri) {
+  if (file && previewUrl) {
     return (
       <div className="relative overflow-hidden rounded-2xl border-2 border-primary/25">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={photoDataUri}
+          src={previewUrl}
           alt="Delivery photo proof"
           className="h-48 w-full object-cover"
         />
         <button
           type="button"
-          onClick={() => onChange(null)}
+          onClick={onClear}
           disabled={disabled}
           aria-label="Remove photo"
           className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
@@ -377,7 +378,7 @@ function PhotoCapture({
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         capture="environment"
         className="sr-only"
         onChange={handleFile}
@@ -399,7 +400,10 @@ export default function ActiveTripView({ order }: { order: TripOrder }) {
   const [pin, setPin] = useState("");
 
   // Photo state (for PICKED_UP → DELIVERED)
-  const [photoDataUri, setPhotoDataUri] = useState<string | null>(null);
+  // photoFile is uploaded to Vercel Blob; photoPreviewUrl is a local object-URL
+  // for preview only — never sent to the server.
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
 
   const phase = getPhase(order.status);
   const isDelivered = phase === "delivered";
@@ -410,7 +414,7 @@ export default function ActiveTripView({ order }: { order: TripOrder }) {
 
   const pinComplete = !order.hasPinRequired || pin.length === 4;
   const canConfirmPickup = isReadyForPickup && pinComplete;
-  const canConfirmDelivery = isInTransit && photoDataUri !== null;
+  const canConfirmDelivery = isInTransit && photoFile !== null;
 
   function handlePickedUp() {
     setError(null);
@@ -425,13 +429,30 @@ export default function ActiveTripView({ order }: { order: TripOrder }) {
   }
 
   function handleDelivered() {
-    if (!photoDataUri) {
+    if (!photoFile) {
       setError("Please take a delivery photo first.");
       return;
     }
     setError(null);
     startTransition(async () => {
-      const result = await markDelivered(order.id, photoDataUri);
+      // Step 1: upload the photo binary to Vercel Blob via the upload route.
+      const form = new FormData();
+      form.append("photo", photoFile);
+      const uploadRes = await fetch(
+        `/api/uploads/delivery-photo?orderId=${order.id}`,
+        { method: "POST", body: form }
+      );
+      if (!uploadRes.ok) {
+        const body = (await uploadRes.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setError(body.error ?? "Photo upload failed — please try again.");
+        return;
+      }
+      const { url } = (await uploadRes.json()) as { url: string };
+
+      // Step 2: record the Blob URL on the order and mark DELIVERED.
+      const result = await markDelivered(order.id, url);
       if (!result.success) {
         setError(result.error ?? "Could not confirm delivery.");
         return;
@@ -611,8 +632,16 @@ export default function ActiveTripView({ order }: { order: TripOrder }) {
         {isInTransit && (
           <div className="space-y-3">
             <PhotoCapture
-              photoDataUri={photoDataUri}
-              onChange={setPhotoDataUri}
+              file={photoFile}
+              previewUrl={photoPreviewUrl}
+              onChange={(f, url) => {
+                setPhotoFile(f);
+                setPhotoPreviewUrl(url);
+              }}
+              onClear={() => {
+                setPhotoFile(null);
+                setPhotoPreviewUrl(null);
+              }}
               disabled={isPending}
             />
             <button

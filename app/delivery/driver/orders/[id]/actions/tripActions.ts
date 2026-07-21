@@ -173,19 +173,17 @@ export async function markPickedUp(
 // ─── markDelivered ────────────────────────────────────────────────────────────
 //
 // Valid from: PICKED_UP
-// Requires a photo proof data-URI (captured from driver's camera).
-//
-// TODO: Replace base64 data-URI storage with Vercel Blob or S3 before
-// production. Storing large base64 strings directly in Postgres is only
-// acceptable for a development stub — in production upload the file to
-// object storage and store only the resulting URL here.
+// Requires a photoUrl — the public Vercel Blob URL returned by
+// POST /api/uploads/delivery-photo. The client uploads the file there first,
+// then calls this action with only the resulting URL string. We never accept
+// base64 data-URIs here; that path caused multi-MB blobs in Postgres.
 
 export async function markDelivered(
   orderId: string,
-  photoDataUri: string
+  photoUrl: string
 ): Promise<{ success: boolean; error?: string }> {
-  if (!photoDataUri || !photoDataUri.startsWith("data:image/")) {
-    return { success: false, error: "A delivery photo is required." };
+  if (!photoUrl || !photoUrl.startsWith("https://")) {
+    return { success: false, error: "A valid delivery photo URL is required." };
   }
 
   const driver = await requireDriverForOrder(orderId);
@@ -200,8 +198,7 @@ export async function markDelivered(
       data: {
         status: DeliveryOrderStatus.DELIVERED,
         deliveredAt: new Date(),
-        // TODO: swap for object-storage URL (Vercel Blob / S3) before production
-        dropoffPhotoUrl: photoDataUri,
+        dropoffPhotoUrl: photoUrl,
       },
     });
 

@@ -1,23 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { put } from "@vercel/blob";
 
-// TODO: replace stub with real file upload to cloud storage:
-//   1. Parse multipart form data (use formdata-node or built-in Web API)
-//   2. Validate file type (JPEG/PNG only) and size (< 5 MB)
-//   3. Upload to S3/R2/GCS with a path like: delivery-photos/{orderId}/{timestamp}.jpg
-//   4. Return the public URL
-//   5. Store URL on DeliveryOrder.deliveryPhotoUrl via /api/driver/orders/[orderId]/status
+// Accepted image MIME types. capture="environment" on mobile reliably produces
+// JPEG; PNG and WebP are accepted from desktop testing workflows.
+const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
+// Extension lookup so the Blob path has a real extension.
+const TYPE_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+// POST /api/uploads/delivery-photo?orderId=<id>
+// Body: multipart/form-data with field "photo" (File).
+// Returns: { ok: true, url: string } — the public Vercel Blob URL.
+//
+// Requires: BLOB_READ_WRITE_TOKEN env var (set in Vercel dashboard under
+// Storage → Blob → your store → Tokens). Also works locally when the token is
+// present in .env.local — no local emulator is needed.
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
   }
 
-  // TODO: implement real file upload
-  // Stub: return a placeholder URL so client code can proceed in development
-  const orderId = req.nextUrl.searchParams.get("orderId") ?? "unknown";
-  const placeholderUrl = `/placeholder-delivery-photo-${orderId}.jpg`;
+  const orderId = req.nextUrl.searchParams.get("orderId");
+  if (!orderId) {
+    return NextResponse.json({ error: "orderId is required" }, { status: 400 });
+  }
 
-  return NextResponse.json({ ok: true, url: placeholderUrl });
+  const formData = await req.formData();
+  const file = formData.get("photo");
+
+  if (!(file instanceof File)) {
+    return NextResponse.json({ error: "No photo provided" }, { status: 400 });
+  }
+
+  if (!ALLOWED_TYPES.has(file.type)) {
+    return NextResponse.json(
+      { error: "Only JPEG, PNG, or WebP images are accepted" },
+      { status: 400 }
+    );
+  }
+
+  if (file.size > MAX_SIZE_BYTES) {
+    return NextResponse.json(
+      { error: "Photo must be under 5 MB" },
+      { status: 400 }
+    );
+  }
+
+  const ext = TYPE_EXT[file.type] ?? "jpg";
+  const timestamp = Date.now();
+  const blobPath = `delivery-photos/${orderId}/${timestamp}.${ext}`;
+
+  const blob = await put(blobPath, file, {
+    access: "public",
+    contentType: file.type,
+  });
+
+  // POST-PILOT TODO: configure a retention/lifecycle policy to auto-delete
+  // delivery photos N days after the delivery date (90 days is a reasonable
+  // starting point). Vercel Blob supports this in the dashboard under
+  // Storage → Blob → your store → Lifecycle. Implement before photo volume
+  // becomes significant.
+
+  return NextResponse.json({ ok: true, url: blob.url });
 }
