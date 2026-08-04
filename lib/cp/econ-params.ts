@@ -43,12 +43,12 @@ export type EconParamKey =
 /** Pilot defaults — identical to the seeded values in prisma/seed-econ.ts.
  *  Used when a row is missing so callers degrade gracefully. */
 const FALLBACKS: Record<EconParamKey, string> = {
-  content_faucet_read_1:    '100',
-  content_faucet_read_2:    '33',
-  content_faucet_read_3to5: '8',
-  content_faucet_daily_cap: '185',
-  daily_total_earn_cap:     '650',
-  weekly_total_earn_cap:    '2600',
+  content_faucet_read_1:    '50',
+  content_faucet_read_2:    '16',
+  content_faucet_read_3to5: '4',
+  content_faucet_daily_cap: '92',
+  daily_total_earn_cap:     '325',
+  weekly_total_earn_cap:    '1300',
   phi_target_low:           '0.9',
   phi_target_high:          '1.1',
   phi_alarm_threshold:      '1.15',

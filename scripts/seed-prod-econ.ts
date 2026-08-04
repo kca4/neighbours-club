@@ -53,38 +53,38 @@ const ECON_PARAMS: Array<{ key: string; value: string; description: string }> =
     // Content faucet curve (Spec §4) — CP earned per verified Note read in a rolling window
     {
       key: "content_faucet_read_1",
-      value: "100",
+      value: "50",
       description: "CP earned on the 1st verified Note read in the daily window",
     },
     {
       key: "content_faucet_read_2",
-      value: "33",
+      value: "16",
       description:
         "CP earned on the 2nd verified Note read in the daily window",
     },
     {
       key: "content_faucet_read_3to5",
-      value: "8",
+      value: "4",
       description:
         "CP earned on the 3rd–5th verified Note reads in the daily window",
     },
     // Per-faucet daily cap (Spec §5)
     {
       key: "content_faucet_daily_cap",
-      value: "185",
+      value: "92",
       description:
         "Maximum CP a member can earn from verified reads in one calendar day (Toronto time)",
     },
     // Total earn backstops (Spec §5) — apply across all faucets combined
     {
       key: "daily_total_earn_cap",
-      value: "650",
+      value: "325",
       description:
         "Maximum CP a member can earn from any source in one calendar day (Toronto time)",
     },
     {
       key: "weekly_total_earn_cap",
-      value: "2600",
+      value: "1300",
       description:
         "Maximum CP a member can earn from any source in one calendar week (Toronto time)",
     },

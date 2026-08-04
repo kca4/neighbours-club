@@ -8,7 +8,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useCart } from "../CartProvider";
 import { createDeliveryOrder } from "../actions/createOrder";
-import { DELIVERY_FEE, WAIVER_COST_CP, computeFees, computeWaiverSavings } from "@/lib/delivery/fees";
+import { DELIVERY_FEE, WAIVER_COST_CP, WAIVER_DISCOUNT_AMOUNT, computeFees } from "@/lib/delivery/fees";
 
 // ─── Stripe init ──────────────────────────────────────────────────────────────
 // Singleton — loadStripe is called once outside the component tree.
@@ -223,9 +223,6 @@ export default function CheckoutPage({
 
   const fees = computeFees(subtotal, tipAmount, waiverEnabled);
   const { serviceFee, tax, total } = fees;
-
-  // Savings amount (constant for given subtotal/tip — shown in the toggle hint).
-  const { cpWaivedAmount } = computeWaiverSavings(subtotal, tipAmount);
 
   // Whether the user has enough CP to use the waiver.
   const canUseWaiver = initialWalletBalance >= WAIVER_COST_CP;
@@ -548,14 +545,14 @@ export default function CheckoutPage({
                   style={{ fontFamily: "var(--font-inter-tight)" }}
                 >
                   {initialWalletBalance.toLocaleString()} CP available ·{" "}
-                  Waive delivery fee (save {fmt(cpWaivedAmount)})
+                  {fmt(WAIVER_DISCOUNT_AMOUNT)} off your delivery fee
                 </p>
               ) : (
                 <p
                   className="mt-0.5 text-xs text-foreground/45"
                   style={{ fontFamily: "var(--font-inter-tight)" }}
                 >
-                  Earn {WAIVER_COST_CP.toLocaleString()} CP to waive your delivery fee
+                  Earn {WAIVER_COST_CP.toLocaleString()} CP to get {fmt(WAIVER_DISCOUNT_AMOUNT)} off delivery
                 </p>
               )}
             </div>
@@ -565,7 +562,7 @@ export default function CheckoutPage({
               type="button"
               role="switch"
               aria-checked={waiverEnabled}
-              aria-label="Waive delivery fee with Community Points"
+              aria-label="Get $2.50 off delivery with Community Points"
               disabled={!canUseWaiver}
               onClick={() => setWaiverEnabled((v) => !v)}
               className={[
@@ -598,7 +595,7 @@ export default function CheckoutPage({
           <dl className="space-y-2.5">
             <TotalRow label="Subtotal" value={subtotal} />
 
-            {/* Delivery fee — special display when waiver is active */}
+            {/* Delivery fee — show partial discount when waiver is active */}
             {waiverEnabled ? (
               <div className="flex items-center justify-between">
                 <dt
@@ -614,7 +611,9 @@ export default function CheckoutPage({
                   <span className="text-sm tabular-nums line-through text-foreground/30">
                     {fmt(DELIVERY_FEE)}
                   </span>
-                  <span className="text-sm font-semibold text-primary">Waived</span>
+                  <span className="text-sm font-semibold tabular-nums text-primary">
+                    {fmt(fees.deliveryFee)}
+                  </span>
                 </dd>
               </div>
             ) : (
@@ -638,7 +637,7 @@ export default function CheckoutPage({
               className="mt-3 rounded-lg bg-primary/5 px-3 py-2 text-xs text-primary/80"
               style={{ fontFamily: "var(--font-inter-tight)" }}
             >
-              {WAIVER_COST_CP.toLocaleString()} CP will be deducted once payment is confirmed.
+              {WAIVER_COST_CP.toLocaleString()} CP will be deducted once payment is confirmed · {fmt(WAIVER_DISCOUNT_AMOUNT)} off your delivery fee.
             </p>
           )}
         </SectionCard>

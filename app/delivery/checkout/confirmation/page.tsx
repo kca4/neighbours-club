@@ -18,6 +18,7 @@ import {
   getDeliveryOrderStatus,
   type DeliveryOrderSummary,
 } from "../../actions/getOrderStatus";
+import { DELIVERY_FEE, WAIVER_DISCOUNT_AMOUNT } from "@/lib/delivery/fees";
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -507,7 +508,6 @@ export default function ConfirmationPage() {
           >
             {[
               { label: "Subtotal", value: order?.subtotal ?? 0 },
-              { label: "Delivery fee", value: order?.deliveryFee ?? 0 },
               { label: "Service fee (10%)", value: order?.serviceFee ?? 0 },
               { label: "Tax", value: order?.tax ?? 0 },
               { label: "Tip", value: order?.tip ?? 0 },
@@ -519,6 +519,32 @@ export default function ConfirmationPage() {
                 </span>
               </div>
             ))}
+
+            {/* Delivery fee — show partial discount when CP waiver was applied */}
+            {order?.cpWaiverApplied ? (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-foreground/50">Delivery fee</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-sm tabular-nums line-through text-foreground/30">
+                    {fmt(DELIVERY_FEE)}
+                  </span>
+                  <span className="text-sm tabular-nums font-semibold text-primary">
+                    {fmt(order.deliveryFee)}
+                  </span>
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    −{fmt(WAIVER_DISCOUNT_AMOUNT)} CP
+                  </span>
+                </span>
+              </div>
+            ) : (
+              <div className="flex justify-between">
+                <span className="text-sm text-foreground/50">Delivery fee</span>
+                <span className="text-sm tabular-nums text-foreground/50">
+                  {fmt(order?.deliveryFee ?? 0)}
+                </span>
+              </div>
+            )}
+
             <div className="flex justify-between border-t border-foreground/8 pt-1.5">
               <span className="text-sm font-bold text-foreground">Total</span>
               <span className="text-sm font-bold tabular-nums text-foreground">

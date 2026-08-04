@@ -570,7 +570,7 @@ async function main() {
       sortOrder: 1,
       isAvailable: true,
       isSecret: true,
-      cpCost: 1000,
+      cpCost: 500,
     },
   });
 

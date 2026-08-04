@@ -20,6 +20,8 @@ export interface DeliveryOrderSummary {
   pickedUpAt: string | null;   // ISO string
   dropoffPhotoUrl: string | null;
   createdAt: Date;
+  /** True when a CP delivery-fee discount was applied to this order. */
+  cpWaiverApplied: boolean;
 }
 
 export async function getDeliveryOrderStatus(
@@ -46,6 +48,7 @@ export async function getDeliveryOrderStatus(
       pickedUpAt: true,
       dropoffPhotoUrl: true,
       createdAt: true,
+      cpWaiverApplied: true,
       restaurant: {
         select: {
           name: true,
@@ -76,5 +79,6 @@ export async function getDeliveryOrderStatus(
     pickedUpAt: order.pickedUpAt?.toISOString() ?? null,
     dropoffPhotoUrl: order.dropoffPhotoUrl,
     createdAt: order.createdAt,
+    cpWaiverApplied: order.cpWaiverApplied,
   };
 }

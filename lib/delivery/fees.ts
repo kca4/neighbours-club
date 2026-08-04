@@ -14,8 +14,21 @@ export const DELIVERY_FEE = 4.99
 export const SERVICE_FEE_RATE = 0.10   // fraction of subtotal
 export const HST_RATE = 0.13           // applied to subtotal + deliveryFee + serviceFee
 
-/** CP units a user burns to waive the delivery fee on one order. */
-export const WAIVER_COST_CP = 500
+/** CP units a user burns to get a partial delivery-fee discount on one order.
+ *  At $0.01/CP: 250 CP = $2.50 off. */
+export const WAIVER_COST_CP = 250
+
+/** Dollar amount deducted from the delivery fee when a CP waiver is applied.
+ *  250 CP × $0.01/CP = $2.50. Customer pays the remaining $2.49.
+ *
+ *  MARGIN NOTE: the waiver can currently stack on Uber-escalated orders
+ *  (AWAITING_COURIER / COURIER_ASSIGNED fulfillment), where the Uber Direct
+ *  cost is borne by the platform. That makes a waivered Uber order margin-
+ *  negative on the delivery fee. For the internal-courier pilot this is
+ *  acceptable and low-frequency. INSTRUMENT this path (log cpWaiverApplied +
+ *  fulfillmentType at settlement) before enabling real Uber escalation;
+ *  restrict or reprice at that point as a margin-control lever. */
+export const WAIVER_DISCOUNT_AMOUNT = 2.50
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,14 +56,18 @@ function round2(n: number): number {
  *
  * @param subtotal     Dollar total of ordered items, already validated against DB prices.
  * @param tip          Tip in dollars (user's choice, validated as non-negative).
- * @param applyWaiver  When true, deliveryFee is zeroed and tax is recomputed accordingly.
+ * @param applyWaiver  When true, WAIVER_DISCOUNT_AMOUNT ($2.50) is deducted from the
+ *                     delivery fee and tax is recomputed on the lower base.
+ *                     Customer pays $2.49 delivery (= $4.99 − $2.50).
  */
 export function computeFees(
   subtotal: number,
   tip: number,
   applyWaiver = false,
 ): FeeBreakdown {
-  const deliveryFee = applyWaiver ? 0 : DELIVERY_FEE
+  const deliveryFee = applyWaiver
+    ? round2(DELIVERY_FEE - WAIVER_DISCOUNT_AMOUNT)
+    : DELIVERY_FEE
   const serviceFee = round2(subtotal * SERVICE_FEE_RATE)
   const taxBase = subtotal + deliveryFee + serviceFee
   const tax = round2(taxBase * HST_RATE)
@@ -67,11 +84,14 @@ export interface WaiverSavings {
    * Dollar amount saved — unwaived.total − waived.total.
    * Stored as DeliveryOrder.cpWaivedAmount.
    *
-   * = DELIVERY_FEE + round2(DELIVERY_FEE × HST_RATE)
-   * At current rates (4.99, 13%): $4.99 + $0.65 = $5.64
+   * = WAIVER_DISCOUNT_AMOUNT + round2(WAIVER_DISCOUNT_AMOUNT × HST_RATE)
+   * At current rates ($2.50 discount, 13%): $2.50 + $0.33 = $2.83
    *
-   * Savings depend only on DELIVERY_FEE and HST_RATE; tip and subtotal do not
-   * affect them. Exposing both full breakdowns makes the math auditable.
+   * Note: the UI displays "$2.50 off delivery" (the CP-backed discount) rather
+   * than this total-savings figure, to keep the $0.01/CP rate transparent.
+   * Savings depend only on WAIVER_DISCOUNT_AMOUNT and HST_RATE; tip and
+   * subtotal do not affect them. Exposing both full breakdowns makes the
+   * math auditable.
    */
   cpWaivedAmount: number
 }

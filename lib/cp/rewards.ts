@@ -11,7 +11,7 @@ export const CP_REWARDS = {
   /** Awarded once per order when a group-buy deal closes successfully and
    *  the member's payment is captured. Self-heals on cron retry via the
    *  @@unique([walletId, referenceId, reason]) idempotency constraint. */
-  group_buy_reward: 330,
+  group_buy_reward: 165,
 } as const satisfies Record<string, number>
 
 // verified_read is intentionally absent: the amount is now derived from the
