@@ -68,6 +68,10 @@
 
 > **MIGRATIONS STILL USE THE DIRECT URL.** The pooled hostname change above is for app runtime only. When running `prisma migrate deploy`, always supply the direct (non-pooled) connection string as shown in the "Database operations" section above.
 
+## Pending post-deploy tasks
+
+- **CP ÷2 rescale + partial waiver (commit b552798):** after next `vercel --prod`, run `scripts/one-time/rescale-cp-2026-08.sql` against prod DB (direct connection) to update EconParam rows + secret item cp_cost to the new scale. `group_buy_reward` ships with code. Verify with the SELECT statements in the SQL file.
+
 ## Deploy checklist (for reference)
 1. Ensure migrations applied to prod DB (`prisma migrate deploy`, direct URL)
 2. Ensure EconParam seeded
