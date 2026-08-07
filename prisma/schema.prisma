@@ -114,6 +114,15 @@ enum NoteSourceType {
   BUSINESS_SUBMISSION
 }
 
+enum ProspectStatus {
+  PROSPECT
+  CONTACTED
+  IN_DISCUSSION
+  CONFIRMED
+  DECLINED
+  PROMOTED
+}
+
 // ─── Core Models ──────────────────────────────────────────────────────────────
 
 model User {
@@ -332,6 +341,7 @@ model Restaurant {
   deliveryOrders DeliveryOrder[]
   deals          Deal[]
   notes          ProcessedNote[]
+  prospects      MerchantProspect[]
 
   @@index([slug])
   @@index([neighbourhoodId, isActive])
@@ -750,4 +760,32 @@ model NoteVersion {
   @@unique([noteId, versionNumber])
   @@index([noteId])
   @@map("note_versions")
+}
+
+// ─── Delivery CRM ─────────────────────────────────────────────────────────────
+
+model MerchantProspect {
+  id            String         @id @default(cuid())
+  name          String
+  cuisine       String?
+  address       String?
+  phone         String?
+  website       String?
+  source        String         // e.g. "kanata-central-bia"
+  externalId    String?        // BIA slug or other source-specific key
+  sourceUrl     String?
+  cluster       String?        // e.g. "centrum" | "hazeldean"
+  status        ProspectStatus @default(PROSPECT)
+  contactName   String?
+  contactEmail  String?
+  lastContactAt DateTime?
+  notes         String?        @db.Text
+  restaurantId  String?        @unique // set when promoted to Restaurant; no promotion logic yet
+  restaurant    Restaurant?    @relation(fields: [restaurantId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([source, externalId])
+  @@index([status])
+  @@index([source])
 }
