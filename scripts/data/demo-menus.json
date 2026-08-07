@@ -1,0 +1,27 @@
+[
+  {
+    "slug": "example-restaurant",
+    "name": "Example Restaurant",
+    "cuisine": "Example",
+    "address": "123 Example St, Kanata, ON",
+    "phone": "613-555-0100",
+    "hours": {
+      "mon": "11:00-21:00",
+      "tue": "11:00-21:00",
+      "wed": "11:00-21:00",
+      "thu": "11:00-21:00",
+      "fri": "11:00-22:00",
+      "sat": "12:00-22:00",
+      "sun": "12:00-20:00"
+    },
+    "description": "Replace this file with the real demo-menus.json before running the seed.",
+    "menuItems": [
+      {
+        "name": "Example Item",
+        "price": 12.99,
+        "category": "Mains",
+        "isAvailable": true
+      }
+    ]
+  }
+]

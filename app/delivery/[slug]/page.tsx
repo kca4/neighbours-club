@@ -8,6 +8,7 @@ import RestaurantHero from "./RestaurantHero";
 import InfoBar from "./InfoBar";
 import MenuBrowser from "./MenuBrowser";
 import SecretMenuSection from "./SecretMenuSection";
+import PreviewModeSetter from "./PreviewModeSetter";
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
@@ -19,7 +20,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const restaurant = await prisma.restaurant.findUnique({
     where: { slug },
-    select: { name: true, description: true },
+    select: { name: true, description: true, isActive: true },
   });
   if (!restaurant) return {};
   return {
@@ -29,6 +30,8 @@ export async function generateMetadata({
     description:
       restaurant.description ??
       `Order from ${restaurant.name} for delivery in Kanata.`,
+    // Prevent search engines from indexing preview / inactive restaurant pages.
+    robots: restaurant.isActive ? undefined : { index: false, follow: false },
   };
 }
 
@@ -36,8 +39,10 @@ export async function generateMetadata({
 
 export default async function DeliveryRestaurantPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ preview?: string }>;
 }) {
   const { slug } = await params;
 
@@ -52,8 +57,19 @@ export default async function DeliveryRestaurantPage({
     },
   });
 
-  if (!restaurant || !restaurant.isActive) {
+  if (!restaurant) {
     notFound();
+  }
+
+  // Gate inactive restaurants behind a preview token so the page is accessible
+  // for merchant demos without being publicly discoverable.
+  const isPreview = !restaurant.isActive;
+  if (isPreview) {
+    const { preview } = await searchParams;
+    const token = process.env.DELIVERY_PREVIEW_TOKEN;
+    if (!token || preview !== token) {
+      notFound();
+    }
   }
 
   // Fetch menu items and wallet balance in parallel — both are fast reads.
@@ -128,6 +144,9 @@ export default async function DeliveryRestaurantPage({
 
   return (
     <main className="flex flex-1 flex-col bg-background">
+      {/* ── Preview mode signal — sets CartProvider.isPreview on mount ───── */}
+      {isPreview && <PreviewModeSetter />}
+
       {/* ── Hero — full-width image with gradient + back button ─────────── */}
       <RestaurantHero
         name={r.name}

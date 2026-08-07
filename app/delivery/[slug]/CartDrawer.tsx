@@ -8,7 +8,7 @@ import { useCart } from "../CartProvider";
 
 export default function CartDrawer() {
   const router = useRouter();
-  const { state, itemCount, subtotal, isDrawerOpen, closeDrawer, updateQuantity } =
+  const { state, itemCount, subtotal, isDrawerOpen, closeDrawer, updateQuantity, isPreview } =
     useCart();
   const closeRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -197,16 +197,27 @@ export default function CartDrawer() {
             </span>
           </div>
 
-          {/* Checkout CTA */}
-          <button
-            className="w-full rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-            onClick={() => {
-              closeDrawer();
-              router.push("/delivery/checkout");
-            }}
-          >
-            Go to checkout
-          </button>
+          {/* Checkout CTA — disabled in preview mode */}
+          {isPreview ? (
+            <div className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-center">
+              <p className="text-sm font-semibold text-amber-800">
+                Preview only — ordering disabled
+              </p>
+              <p className="mt-0.5 text-xs text-amber-700">
+                This restaurant isn&apos;t live yet
+              </p>
+            </div>
+          ) : (
+            <button
+              className="w-full rounded-xl bg-primary py-3.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              onClick={() => {
+                closeDrawer();
+                router.push("/delivery/checkout");
+              }}
+            >
+              Go to checkout
+            </button>
+          )}
         </div>
       </div>
     </>

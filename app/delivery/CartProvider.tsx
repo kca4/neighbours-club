@@ -116,6 +116,9 @@ interface CartContextValue {
   isDrawerOpen: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
+  /** True when the current restaurant page is a preview (isActive=false). Disables checkout. */
+  isPreview: boolean;
+  setPreviewMode: (v: boolean) => void;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -189,6 +192,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, emptyState);
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isPreview, setPreviewMode] = useState(false);
   // hydrated gates the persistence effect so the initial emptyState render
   // never overwrites a saved cart before the hydration effect has run.
   const [hydrated, setHydrated] = useState(false);
@@ -281,6 +285,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         isDrawerOpen,
         openDrawer,
         closeDrawer,
+        isPreview,
+        setPreviewMode,
       }}
     >
       {children}

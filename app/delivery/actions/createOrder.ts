@@ -49,6 +49,18 @@ export async function createDeliveryOrder(input: CreateOrderInput): Promise<{
   // userId comes from the session — never from client input.
   const userId = session.user.id;
 
+  // ── Reject orders for restaurants that are not yet live ────────────────────
+  // This is the server-side counterpart to the preview-mode UI block in
+  // CartDrawer. A preview URL with a valid token lets merchants browse the menu
+  // but cannot bypass this check to place real orders.
+  const orderRestaurant = await prisma.restaurant.findUnique({
+    where: { id: input.restaurantId },
+    select: { isActive: true },
+  });
+  if (!orderRestaurant || !orderRestaurant.isActive) {
+    throw new Error("Ordering is not available for this restaurant.");
+  }
+
   // ── Basic tip sanity check (relative cap applied after subtotal is known) ───
   if (!Number.isFinite(input.tip) || input.tip < 0) {
     throw new Error("Tip amount is invalid.");
