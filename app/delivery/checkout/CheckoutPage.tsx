@@ -16,7 +16,7 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TipMode = "15" | "18" | "20" | "custom";
+type TipMode = "none" | "15" | "18" | "20" | "custom";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -194,7 +194,7 @@ export default function CheckoutPage({
   const [address, setAddress] = useState("");
   const [unit, setUnit] = useState("");
   const [instructions, setInstructions] = useState("");
-  const [tipMode, setTipMode] = useState<TipMode>("18");
+  const [tipMode, setTipMode] = useState<TipMode>("none");
   const [customTip, setCustomTip] = useState("");
   const [waiverEnabled, setWaiverEnabled] = useState(false);
 
@@ -217,7 +217,9 @@ export default function CheckoutPage({
   // computeFees mirrors the server-side calculation in createOrder.ts so the
   // displayed breakdown always matches what Stripe will charge.
   const tipAmount =
-    tipMode === "custom"
+    tipMode === "none"
+      ? 0
+      : tipMode === "custom"
       ? Math.max(0, parseFloat(customTip) || 0)
       : subtotal * (parseInt(tipMode, 10) / 100);
 
@@ -485,7 +487,7 @@ export default function CheckoutPage({
           </p>
 
           <div className="flex gap-2">
-            {(["15", "18", "20", "custom"] as TipMode[]).map((mode) => (
+            {(["none", "15", "18", "20", "custom"] as TipMode[]).map((mode) => (
               <button
                 key={mode}
                 type="button"
@@ -499,7 +501,7 @@ export default function CheckoutPage({
                 ].join(" ")}
                 style={{ fontFamily: "var(--font-inter-tight)" }}
               >
-                {mode === "custom" ? "Custom" : `${mode}%`}
+                {mode === "none" ? "No tip" : mode === "custom" ? "Custom" : `${mode}%`}
               </button>
             ))}
           </div>
@@ -622,7 +624,7 @@ export default function CheckoutPage({
 
             <TotalRow label="Service fee (10%)" value={serviceFee} />
             <TotalRow
-              label={`Tip (${tipMode === "custom" ? "custom" : `${tipMode}%`})`}
+              label={tipMode === "none" ? "Tip" : `Tip (${tipMode === "custom" ? "custom" : `${tipMode}%`})`}
               value={tipAmount}
             />
             <TotalRow label="HST (13%)" value={tax} />

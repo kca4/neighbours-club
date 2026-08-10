@@ -133,13 +133,6 @@ export default async function DeliveryRestaurantPage({
     cpCost: item.cpCost as number, // non-null guaranteed by filter above
   }));
 
-  // Derive "Most Ordered" — top 4 regular items by global sortOrder.
-  // Secret items are intentionally excluded from this section.
-  const mostOrderedItems = items
-    .slice()
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
-    .slice(0, 4);
-
   const restaurantInfo = { id: restaurant.id, name: restaurant.name, slug: restaurant.slug };
 
   return (
@@ -170,7 +163,7 @@ export default async function DeliveryRestaurantPage({
       />
 
       {/* ── Menu browser — sticky tabs + scrollable sections ─────────── */}
-      <MenuBrowser key={slug} items={items} mostOrderedItems={mostOrderedItems} restaurant={restaurantInfo} />
+      <MenuBrowser key={slug} items={items} restaurant={restaurantInfo} />
 
       {/* ── Secret Menu — hidden if restaurant has no secret items ──────── */}
       <SecretMenuSection items={secretItems} walletBalance={walletBalance} />

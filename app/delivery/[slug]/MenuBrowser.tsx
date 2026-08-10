@@ -42,20 +42,11 @@ function matchesQuery(item: SerializedMenuItem, q: string): boolean {
 interface MenuBrowserProps {
   /** All available menu items for this restaurant (one row per item). */
   items: SerializedMenuItem[];
-  /**
-   * The top-N items to show in the virtual "Most Ordered" section.
-   * These are the SAME objects from `items` — same IDs, no DB duplication.
-   * Derived in the server component by sorting items by sortOrder globally
-   * and slicing the first 4.
-   */
-  mostOrderedItems: SerializedMenuItem[];
   /** Restaurant identity — passed down to menu cards for cart actions. */
   restaurant: RestaurantInfo;
 }
 
-const MOST_ORDERED = "Most Ordered";
-
-export default function MenuBrowser({ items, mostOrderedItems, restaurant }: MenuBrowserProps) {
+export default function MenuBrowser({ items, restaurant }: MenuBrowserProps) {
   const [isScrollSpyActive, setScrollSpyActive] = useState(true);
   const [query, setQuery] = useState("");
 
@@ -70,21 +61,19 @@ export default function MenuBrowser({ items, mostOrderedItems, restaurant }: Men
 
   const isSearching = query.length > 0;
 
-  // ── Real categories — derived from items, never includes "Most Ordered" ──
-  // Items in mostOrderedItems also appear here in their real categories,
-  // matching the DoorDash pattern where popular items show up in both sections.
-  const realCategories = Array.from(
-    new Set(items.map((item) => item.category).filter((c) => c !== MOST_ORDERED))
+  // ── Categories — ordered by minimum sortOrder of first item in each group ──
+  // sortOrder = JSON array index from the seed script, so this preserves the
+  // merchant's intended category sequence regardless of DB iteration order.
+  const categoryMinSort = new Map<string, number>();
+  for (const item of items) {
+    const cur = categoryMinSort.get(item.category) ?? Infinity;
+    if (item.sortOrder < cur) categoryMinSort.set(item.category, item.sortOrder);
+  }
+  const realCategories = [...categoryMinSort.keys()].sort(
+    (a, b) => categoryMinSort.get(a)! - categoryMinSort.get(b)!
   );
 
-  // ── Full category list for tabs ──────────────────────────────────────────
-  // "Most Ordered" is first, but hidden during search (items are reachable
-  // via their real categories and deduplication is irrelevant in search).
-  const allCategories = isSearching
-    ? realCategories
-    : mostOrderedItems.length > 0
-    ? [MOST_ORDERED, ...realCategories]
-    : realCategories;
+  const allCategories = realCategories;
 
   // ── Apply search filter across all items ─────────────────────────────────
   const filteredItems = isSearching
@@ -99,12 +88,6 @@ export default function MenuBrowser({ items, mostOrderedItems, restaurant }: Men
 
   // ── Group + sort items for each section ──────────────────────────────────
   const byCategory = new Map<string, SerializedMenuItem[]>();
-
-  if (!isSearching && mostOrderedItems.length > 0) {
-    // "Most Ordered" is a virtual section — items are NOT re-sorted by sortOrder
-    // here because they arrive pre-sorted from the server.
-    byCategory.set(MOST_ORDERED, mostOrderedItems);
-  }
 
   for (const cat of realCategories) {
     byCategory.set(
@@ -175,9 +158,6 @@ export default function MenuBrowser({ items, mostOrderedItems, restaurant }: Men
               category={cat}
               items={byCategory.get(cat) ?? []}
               restaurant={restaurant}
-              // Show the subtitle + ranking badges only in the "Most Ordered"
-              // section when not filtering (a filtered subset ≠ the ranked list).
-              isMostOrdered={cat === MOST_ORDERED && !isSearching}
             />
           ))
         )}

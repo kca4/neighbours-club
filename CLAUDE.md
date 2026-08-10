@@ -228,6 +228,20 @@ When working on this project, follow these conventions:
 
 ---
 
+## Engagement Pattern Standard — hard gate
+
+Any UI element that presents unverified data as fact or manufactures urgency is a violation. "The research said so" is never a justification. Before shipping any customer-facing feature in any vertical, check for:
+
+- **Fake popularity signals** — labels like "Most Ordered", "Trending", "Popular", "Best Seller", "#1 Most liked", or ranking badges not backed by real, queryable order/like counts. *Resolved: MOST_ORDERED section removed from delivery menu (commit `fix(delivery): remove engagement pattern violations…`). The section showed the first 4 items in JSON sequence and called them "Most Ordered" with no order data.*
+- **Pre-selected upsells** — a tip percentage, add-on, or upgrade pre-chosen on mount so the user pays it without a conscious choice. *Resolved: checkout tip default changed from 18% pre-selected to "No tip"; no preset is active on mount.*
+- **Unverified ratings and review counts** — displaying `rating` / `reviewCount` fields without a real review-collection flow. Third-party or manually entered ratings must never populate these fields. *Resolved: `REVIEWS_ENABLED = false` in `lib/delivery/reviews.ts` gates both `RestaurantGrid.tsx` and `InfoBar.tsx`; the block cannot render regardless of DB values.*
+- **Fabricated prestige / exclusivity labels** — badges like "VIP" applied to features that have no corresponding membership tier. *Resolved: secret-menu badge changed from gradient "VIP" to neutral "Members only".*
+- **Scarcity indicators** — "Only X left", "Selling fast", "Limited time" copy not backed by real inventory or time constraints.
+- **Countdown timers** — urgency timers not tied to a real, verifiable deadline.
+- **Opaque CP value** — never present CP earnings or costs without disclosing the `cp_to_dollar_rate`. The rate ($0.01/CP) is a committed business decision stored in `EconParam` and readable by users via the /wallet page.
+
+---
+
 ## Local development
 
 Required terminals when actively developing:

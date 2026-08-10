@@ -115,14 +115,8 @@ export default function SecretMenuSection({ items, walletBalance }: Props) {
                       >
                         {item.name}
                       </p>
-                      <span
-                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, #92400e 0%, #d97706 100%)",
-                        }}
-                      >
-                        VIP
+                      <span className="inline-flex items-center rounded-full border border-foreground/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground/55">
+                        Members only
                       </span>
                     </div>
 

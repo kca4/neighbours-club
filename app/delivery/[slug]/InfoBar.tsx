@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Star, Clock, Truck, AlertCircle } from "lucide-react";
 import type { OperatingHours } from "@/lib/types/delivery";
+import { REVIEWS_ENABLED } from "@/lib/delivery/reviews";
 
 // ─── Hours helpers ────────────────────────────────────────────────────────────
 
@@ -94,7 +95,7 @@ export default function InfoBar({
       {/* ── Info chips row ──────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 sm:px-6">
         {/* Rating */}
-        {rating !== null && (
+        {REVIEWS_ENABLED && rating !== null && (
           <div className="flex items-center gap-1.5">
             <Star
               size={14}

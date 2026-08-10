@@ -14,36 +14,15 @@ interface MenuSectionProps {
   category: string;
   items: SerializedMenuItem[];
   restaurant: RestaurantInfo;
-  isMostOrdered?: boolean;
 }
 
 export default function MenuSection({
   category,
   items,
   restaurant,
-  isMostOrdered = false,
 }: MenuSectionProps) {
   const imageItems = items.filter((item) => item.imageUrl);
   const listItems = items.filter((item) => !item.imageUrl);
-
-  // Derive "Most Ordered" badges from real data
-  let mostLikedId: string | null = null;
-  let greatPriceId: string | null = null;
-
-  if (isMostOrdered && items.length > 0) {
-    // "#1 Most liked" — first item by sortOrder (already sorted)
-    mostLikedId = items[0].id;
-
-    // "Great price" — lowest-priced item; skip the #1 item if possible
-    const sorted = [...items].sort((a, b) => a.price - b.price);
-    greatPriceId =
-      sorted[0].id === mostLikedId && sorted.length > 1
-        ? sorted[1].id
-        : sorted[0].id;
-
-    // Don't show "Great price" if it would duplicate "#1 Most liked"
-    if (greatPriceId === mostLikedId) greatPriceId = null;
-  }
 
   return (
     <section
@@ -59,31 +38,16 @@ export default function MenuSection({
         {category}
       </h2>
 
-      {isMostOrdered && (
-        <p className="mt-1 text-sm text-foreground/50">
-          The most commonly ordered items from this store
-        </p>
-      )}
-
       {/* Image items — 2-col grid */}
       {imageItems.length > 0 && (
         <div className="mt-4 grid grid-cols-2 gap-4">
-          {imageItems.map((item) => {
-            const badge =
-              isMostOrdered && item.id === mostLikedId
-                ? "#1 Most liked"
-                : isMostOrdered && item.id === greatPriceId
-                ? "Great price"
-                : null;
-            return (
-              <ImageMenuItemCard
-                key={item.id}
-                item={item}
-                restaurant={restaurant}
-                badge={badge}
-              />
-            );
-          })}
+          {imageItems.map((item) => (
+            <ImageMenuItemCard
+              key={item.id}
+              item={item}
+              restaurant={restaurant}
+            />
+          ))}
         </div>
       )}
 

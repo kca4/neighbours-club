@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Search, Star, Clock, X } from "lucide-react";
+import { REVIEWS_ENABLED } from "@/lib/delivery/reviews";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -97,7 +98,7 @@ function RestaurantCard({ r }: { r: RestaurantSummary }) {
         {/* Cuisine + rating */}
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
           <span className="text-foreground/50">{r.cuisine}</span>
-          {r.rating !== null && (
+          {REVIEWS_ENABLED && r.rating !== null && (
             <>
               <span className="text-foreground/20" aria-hidden>·</span>
               <span className="flex items-center gap-1 font-semibold text-accent">

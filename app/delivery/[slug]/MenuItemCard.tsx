@@ -58,11 +58,9 @@ function useAddToCart(item: SerializedMenuItem, restaurant: RestaurantInfo) {
 export function ImageMenuItemCard({
   item,
   restaurant,
-  badge,
 }: {
   item: SerializedMenuItem;
   restaurant: RestaurantInfo;
-  badge?: string | null;
 }) {
   const [imgError, setImgError] = useState(false);
   const fallbackBg = item.colorHex ?? "#0F766E";
@@ -90,13 +88,6 @@ export function ImageMenuItemCard({
               {item.name}
             </span>
           </div>
-        )}
-
-        {/* Badge — top-left */}
-        {badge && (
-          <span className="absolute left-2 top-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold leading-tight text-white shadow">
-            {badge}
-          </span>
         )}
 
         {/* Add button — bottom-right */}
