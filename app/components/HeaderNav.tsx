@@ -5,6 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import SignOutButton from "./SignOutButton";
 
+// Set to true to restore the "Order Food" link when delivery goes live.
+const SHOW_DELIVERY_NAV = false;
+
 interface HeaderNavProps {
   isLoggedIn: boolean;
   isAdmin: boolean;
@@ -47,13 +50,15 @@ export default function HeaderNav({
         <Link href="/notes" className={desktopLink}>
           Notes
         </Link>
-        <Link
-          href="/delivery"
-          className={isDeliveryActive ? desktopLinkActive : desktopLink}
-          aria-current={isDeliveryActive ? "page" : undefined}
-        >
-          Order Food
-        </Link>
+        {SHOW_DELIVERY_NAV && (
+          <Link
+            href="/delivery"
+            className={isDeliveryActive ? desktopLinkActive : desktopLink}
+            aria-current={isDeliveryActive ? "page" : undefined}
+          >
+            Order Food
+          </Link>
+        )}
         {!isLoggedIn ? (
           <>
             <Link href="/signin" className={desktopLink}>
@@ -153,14 +158,16 @@ export default function HeaderNav({
             <Link href="/notes" onClick={close} className={mobileLink}>
               Notes
             </Link>
-            <Link
-              href="/delivery"
-              onClick={close}
-              className={isDeliveryActive ? mobileLinkActive : mobileLink}
-              aria-current={isDeliveryActive ? "page" : undefined}
-            >
-              Order Food
-            </Link>
+            {SHOW_DELIVERY_NAV && (
+              <Link
+                href="/delivery"
+                onClick={close}
+                className={isDeliveryActive ? mobileLinkActive : mobileLink}
+                aria-current={isDeliveryActive ? "page" : undefined}
+              >
+                Order Food
+              </Link>
+            )}
             {!isLoggedIn ? (
               <>
                 <Link href="/signin" onClick={close} className={mobileLink}>
