@@ -20,37 +20,37 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 const params: Array<{ key: string; value: string; description: string }> = [
-  // ── Content faucet (rescaled to $0.01/CP; real dollar cost invariant held) ──
-  // Curve sums to 157 CP/day max (100+33+8+8+8). Floor-rounding errs toward
+  // ── Content faucet (halved ÷2 from original rescale; real dollar cost invariant held) ──
+  // Curve sums to 78 CP/day max (50+16+4+4+4). Floor-rounding errs toward
   // less emission, which favours solvency over generosity.
   {
     key: 'content_faucet_read_1',
-    value: '100',
+    value: '50',
     description: 'CP awarded for the 1st verified_read in the rolling 24h window per user',
   },
   {
     key: 'content_faucet_read_2',
-    value: '33',
+    value: '16',
     description: 'CP awarded for the 2nd verified_read in the rolling 24h window per user',
   },
   {
     key: 'content_faucet_read_3to5',
-    value: '8',
+    value: '4',
     description: 'CP awarded for the 3rd–5th verified_reads in the rolling 24h window per user (each)',
   },
   {
     key: 'content_faucet_daily_cap',
-    value: '185',
+    value: '92',
     description: 'Hard daily CP cap from the content faucet alone per user (Spec §4)',
   },
   {
     key: 'daily_total_earn_cap',
-    value: '650',
+    value: '325',
     description: 'Hard daily CP cap across ALL faucets per user — backstop against bugs/abuse (Spec §5)',
   },
   {
     key: 'weekly_total_earn_cap',
-    value: '2600',
+    value: '1300',
     description: 'Hard weekly CP cap across ALL faucets per user (Spec §5)',
   },
   // ── Disclosed CP→$ rate ───────────────────────────────────────────────────
