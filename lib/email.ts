@@ -13,6 +13,23 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.EMAIL_FROM ?? "Neighbours Club <hello@neighborsclub.ca>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+// Support contact address for member-facing emails. Defaults to the address
+// extracted from EMAIL_FROM so that dev environments work without extra config.
+// In production, MEMBER_SUPPORT_EMAIL must point to a monitored inbox.
+const SUPPORT_EMAIL =
+  process.env.MEMBER_SUPPORT_EMAIL ??
+  FROM.match(/<(.+?)>/)?.[1] ??
+  FROM;
+
+if (process.env.NODE_ENV === 'production' && !process.env.MEMBER_SUPPORT_EMAIL) {
+  // Loud error at module load so it appears in server startup logs.
+  // Does not throw — emails still send, but to potentially unmonitored address.
+  console.error(
+    '[email] PRODUCTION MISCONFIGURATION: MEMBER_SUPPORT_EMAIL is not set. ' +
+    'Member support emails will route to the EMAIL_FROM address, which may not be monitored. ' +
+    'Set MEMBER_SUPPORT_EMAIL=<monitored-inbox> before public launch.',
+  );
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -21,7 +38,15 @@ function fmtCad(amount: number): string {
     style: "currency",
     currency: "CAD",
     minimumFractionDigits: 2,
-  }) + " CAD";
+  });
+}
+
+function fmtCadFR(amount: number): string {
+  return amount.toLocaleString("fr-CA", {
+    style: "currency",
+    currency: "CAD",
+    minimumFractionDigits: 2,
+  });
 }
 
 function fmtDate(date: Date): string {
@@ -59,6 +84,7 @@ function fmtPickupWindow(start: Date, end: Date): string {
 // ─── Base template ────────────────────────────────────────────────────────────
 
 function baseTemplate(content: string): string {
+  const address = process.env.NEIGHBOURS_CLUB_ADDRESS ?? null;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,11 +111,14 @@ function baseTemplate(content: string): string {
             </td>
           </tr>
           <!-- Footer -->
+          <!-- NOTE for counsel: physical mailing address is required here under CASL for
+               commercial electronic messages. NEIGHBOURS_CLUB_ADDRESS env var is used when set;
+               if unset, no address is shown. Confirm CASL exemption before public launch. -->
           <tr>
             <td style="padding-top:24px;font-size:12px;color:#9ca3af;text-align:center;">
-              Neighbours Club &middot; Kanata, Ottawa<br/>
+              Neighbours Club${address ? ` &middot; ${address}` : ''}<br/>
               You received this email because you have an account with Neighbours Club.<br/>
-              To manage email preferences, <a href="${APP_URL}/account" style="color:#9ca3af;">visit your account</a>.
+              Vous recevez ce courriel parce que vous avez un compte Neighbours Club.
             </td>
           </tr>
         </table>
@@ -199,7 +228,8 @@ export async function sendDealClosedSuccess(params: {
   pickupWindowStart: Date;
   pickupWindowEnd: Date;
   pickupInstructions?: string | null;
-}) {
+  idempotencyKey?: string;
+}): Promise<boolean> {
   const {
     to,
     memberName,
@@ -212,6 +242,7 @@ export async function sendDealClosedSuccess(params: {
     pickupWindowStart,
     pickupWindowEnd,
     pickupInstructions,
+    idempotencyKey,
   } = params;
 
   const html = baseTemplate(`
@@ -231,10 +262,11 @@ export async function sendDealClosedSuccess(params: {
     ${btn("View my deals", `${APP_URL}/my-deals`)}
   `);
 
-  await send({
+  return await send({
     to,
     subject: `Great news — ${dealTitle} is happening!`,
     html,
+    idempotencyKey,
   });
 }
 
@@ -245,8 +277,9 @@ export async function sendDealClosedFailed(params: {
   to: string;
   memberName: string;
   dealTitle: string;
-}) {
-  const { to, memberName, dealTitle } = params;
+  idempotencyKey?: string;
+}): Promise<boolean> {
+  const { to, memberName, dealTitle, idempotencyKey } = params;
 
   const html = baseTemplate(`
     ${h1(`${dealTitle} didn't reach the minimum — no charge`)}
@@ -256,15 +289,17 @@ export async function sendDealClosedFailed(params: {
     ${btn("Browse deals", `${APP_URL}/deals`)}
   `);
 
-  await send({
+  return await send({
     to,
     subject: `${dealTitle} didn't reach the minimum — no charge`,
     html,
+    idempotencyKey,
   });
 }
 
 /**
- * 4. ORDER_CAPTURE_FAILED — sent when a payment capture fails during closure
+ * 4. ORDER_CAPTURE_FAILED — sent when a payment capture fails during closure.
+ *    Bilingual (EN then FR). Includes the actual recovery deadline.
  */
 export async function sendOrderCaptureFailed(params: {
   to: string;
@@ -272,26 +307,111 @@ export async function sendOrderCaptureFailed(params: {
   dealTitle: string;
   amountOwed: number;
   recoveryToken: string;
-}) {
-  const { to, memberName, dealTitle, amountOwed, recoveryToken } = params;
+  recoveryExpiresAt: Date | null;
+  idempotencyKey?: string;
+}): Promise<boolean> {
+  const { to, memberName, dealTitle, amountOwed, recoveryToken, recoveryExpiresAt, idempotencyKey } = params;
   const recoveryUrl = `${APP_URL}/recover-payment/${recoveryToken}`;
 
-  const html = baseTemplate(`
-    ${h1(`Action needed — payment issue on ${dealTitle}`)}
-    ${p(`Hi ${memberName}, the deal succeeded but we were unable to process your payment.`)}
+  const firstName = memberName.trim() ? memberName.split(' ')[0] : null;
+  const greetingEN = firstName ? `Hi ${firstName},` : 'Hi,';
+  const greetingFR = firstName ? `Bonjour ${firstName},` : 'Bonjour,';
+
+  const deadlineEN = recoveryExpiresAt ? fmtDateTime(recoveryExpiresAt, 'en-CA') : null;
+  const deadlineFR = recoveryExpiresAt ? fmtDateTime(recoveryExpiresAt, 'fr-CA') : null;
+
+  const deadlineLineEN = deadlineEN
+    ? `<p style="margin:12px 0;font-size:15px;line-height:1.6;color:#374151;">To keep your order, please complete your payment before <strong>${deadlineEN}</strong>:</p>`
+    : `<p style="margin:12px 0;font-size:15px;line-height:1.6;color:#374151;">To keep your order, please complete your payment as soon as possible:</p>`;
+  const deadlineLineFR = deadlineFR
+    ? `<p style="margin:12px 0;font-size:15px;line-height:1.6;color:#374151;">Pour conserver votre commande, veuillez finaliser votre paiement avant le <strong>${deadlineFR}</strong>&nbsp;:</p>`
+    : `<p style="margin:12px 0;font-size:15px;line-height:1.6;color:#374151;">Pour conserver votre commande, veuillez finaliser votre paiement dès que possible&nbsp;:</p>`;
+
+  const content = `
+    <!-- EN — Le français suit. -->
+    ${p('<em>Le français suit.</em>', true)}
+    ${h1(`Action needed: complete your payment for ${dealTitle}`)}
+    ${p(greetingEN)}
+    ${p(`<strong>${dealTitle}</strong> reached its goal, but we weren't able to process your payment, so you haven't been charged yet. This can happen for different reasons and doesn't necessarily mean there's a problem with your card.`)}
     ${dl([
       ["Deal", dealTitle],
       ["Amount due", fmtCad(amountOwed)],
     ])}
-    ${p("Please complete your payment within <strong>48 hours</strong> to keep your spot in the deal.")}
-    ${btn("Complete payment now", recoveryUrl)}
-    ${p("If you need help, reply to this email or contact us at support@neighborsclub.ca.", true)}
-  `);
+    ${deadlineLineEN}
+    ${btn("Complete payment", recoveryUrl)}
+    ${deadlineEN ? p(`If payment isn't completed before ${deadlineEN}, your order will be cancelled and you won't be charged.`) : ''}
+    ${p(`Need help? Reach us at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.`, true)}
+    ${p('Alex<br/>Neighbours Club', true)}
 
-  await send({
+    <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0;"/>
+
+    <!-- FR -->
+    ${h1(`Action requise\u00A0: finalisez votre paiement pour ${dealTitle}`)}
+    ${p(greetingFR)}
+    ${p(`L'achat groupé <strong>${dealTitle}</strong> a atteint son objectif, mais nous n'avons pas pu traiter votre paiement; aucun montant n'a donc été débité pour l'instant. Cela peut se produire pour différentes raisons et ne signifie pas nécessairement qu'il y a un problème avec votre carte.`)}
+    ${dl([
+      ["Achat groupé", dealTitle],
+      ["Montant dû", fmtCadFR(amountOwed)],
+    ])}
+    ${deadlineLineFR}
+    ${btn("Finaliser le paiement", recoveryUrl)}
+    ${deadlineFR ? p(`Si le paiement n'est pas finalisé avant le ${deadlineFR}, votre commande sera annulée et aucun montant ne sera débité.`) : ''}
+    ${p(`Besoin d'aide? Écrivez-nous à <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.`, true)}
+    ${p('Alex<br/>Neighbours Club', true)}
+  `;
+
+  return await send({
     to,
-    subject: `Action needed — payment issue on ${dealTitle}`,
-    html,
+    subject: `Action needed: complete your payment for ${dealTitle}`,
+    html: baseTemplate(content),
+    idempotencyKey,
+  });
+}
+
+/**
+ * 4b. ORDER_RECOVERY_EXPIRED — sent when the recovery window closes without payment.
+ *     Bilingual (EN then FR).
+ */
+export async function sendOrderRecoveryExpired(params: {
+  to: string;
+  memberName: string;
+  dealTitle: string;
+  recoveryExpiresAt: Date;
+  idempotencyKey?: string;
+}): Promise<boolean> {
+  const { to, memberName, dealTitle, recoveryExpiresAt, idempotencyKey } = params;
+
+  const firstName = memberName.trim() ? memberName.split(' ')[0] : null;
+  const greetingEN = firstName ? `Hi ${firstName},` : 'Hi,';
+  const greetingFR = firstName ? `Bonjour ${firstName},` : 'Bonjour,';
+
+  const deadlineEN = fmtDateTime(recoveryExpiresAt, 'en-CA');
+  const deadlineFR = fmtDateTime(recoveryExpiresAt, 'fr-CA');
+
+  const content = `
+    <!-- EN — Le français suit. -->
+    ${p('<em>Le français suit.</em>', true)}
+    ${h1(`Your order for ${dealTitle} was cancelled — you weren't charged`)}
+    ${p(greetingEN)}
+    ${p(`The payment for your order of <strong>${dealTitle}</strong> wasn't completed before <strong>${deadlineEN}</strong>, so we've cancelled your order. You haven't been charged, and there's nothing further you need to do.`)}
+    ${p(`Need help? Reach us at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.`, true)}
+    ${p('Alex<br/>Neighbours Club', true)}
+
+    <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0;"/>
+
+    <!-- FR -->
+    ${h1(`Votre commande pour ${dealTitle} a été annulée — aucun montant débité`)}
+    ${p(greetingFR)}
+    ${p(`Le paiement pour votre commande de <strong>${dealTitle}</strong> n'a pas été finalisé avant le <strong>${deadlineFR}</strong>. Votre commande a donc été annulée. Aucun montant n'a été débité, et vous n'avez rien d'autre à faire.`)}
+    ${p(`Besoin d'aide? Écrivez-nous à <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.`, true)}
+    ${p('Alex<br/>Neighbours Club', true)}
+  `;
+
+  return await send({
+    to,
+    subject: `Your order for ${dealTitle} was cancelled — you weren't charged`,
+    html: baseTemplate(content),
+    idempotencyKey,
   });
 }
 
@@ -650,6 +770,136 @@ export async function sendDailyDigest(
   }
 }
 
+// ─── Order auth-expiry notification ──────────────────────────────────────────
+
+// Helper: date + time formatted for email body (locale-specific, always America/Toronto)
+export function fmtDateTime(date: Date, locale: 'en-CA' | 'fr-CA'): string {
+  return date.toLocaleString(locale, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'America/Toronto',
+    timeZoneName: 'short',
+  });
+}
+
+/**
+ * Sent when a member's card authorization was voided because it would expire
+ * before the deal closes.
+ *
+ * variant:
+ *   'rejoin_available' — deal still OPEN, safeRejoinAt computed (Case A)
+ *   'no_rejoin'        — deal still OPEN, auth too short for any window (Case B)
+ *   'deal_closed'      — deal is no longer OPEN at send time (Case C)
+ *
+ * Copy for Case B and Case C is WORDING PENDING COMMUNICATIONS REVIEW.
+ */
+export async function sendOrderAuthExpired({
+  to,
+  memberName,
+  dealTitle,
+  dealSlug,
+  closesAt,
+  safeRejoinAt,
+  variant = 'rejoin_available',
+  idempotencyKey,
+}: {
+  to: string;
+  memberName: string | null;
+  dealTitle: string;
+  dealSlug: string;
+  closesAt: Date;
+  safeRejoinAt: Date | null;
+  variant?: 'rejoin_available' | 'no_rejoin' | 'deal_closed';
+  idempotencyKey?: string;
+}): Promise<boolean> {
+  const firstName = memberName?.split(' ')[0] ?? null;
+  const greetingEN = firstName ? `Hi ${firstName},` : 'Hi,';
+  const greetingFR = firstName ? `Bonjour ${firstName},` : 'Bonjour,';
+  const closeDateEN = fmtDateTime(closesAt, 'en-CA');
+  const closeDateFR = fmtDateTime(closesAt, 'fr-CA');
+  const rejoinUrl = `${APP_URL}/deals/${dealSlug}`;
+
+  // "closes on" vs. "closed on" — past tense when deal is no longer OPEN
+  const closesOrClosedEN = variant === 'deal_closed' ? 'closed on' : 'closes on';
+  const closesOrClosedFR =
+    variant === 'deal_closed'
+      ? 'le'
+      : 'prévue le';         // "scheduled for"
+
+  // ── Case-specific rejoin sections ────────────────────────────────────────
+  let rejoinSectionEN: string;
+  let rejoinSectionFR: string;
+
+  if (variant === 'rejoin_available' && safeRejoinAt) {
+    // Case A: deal open, rejoin window exists
+    rejoinSectionEN = `
+      <p>If you'd still like to take part, you can re-join from
+      <strong>${fmtDateTime(safeRejoinAt, 'en-CA')}</strong> until the deal closes:</p>
+      ${btn('Re-join this deal', rejoinUrl)}`;
+    rejoinSectionFR = `
+      <p>Si vous souhaitez toujours participer, vous pourrez vous réinscrire à partir du
+      <strong>${fmtDateTime(safeRejoinAt, 'fr-CA')}</strong> jusqu'à la fermeture de l'achat groupé&nbsp;:</p>
+      ${btn('Participer de nouveau', rejoinUrl)}`;
+  } else if (variant === 'no_rejoin') {
+    // Case B: deal open, auth window too short for any rejoin
+    rejoinSectionEN =
+      p("Unfortunately, we can't hold a payment long enough for this deal, so re-joining isn't possible this time. We're sorry for the inconvenience.");
+    rejoinSectionFR =
+      p("Malheureusement, nous ne pouvons pas réserver le paiement assez longtemps pour cet achat groupé. Il n'est donc pas possible de vous réinscrire cette fois-ci. Nous sommes désolés pour cet inconvénient.");
+  } else {
+    // Case C: deal already closed
+    rejoinSectionEN =
+      p(`<strong>${dealTitle}</strong> has now closed, so there's nothing further you need to do. You haven't been charged, and the temporary hold on your card has been released.`);
+    rejoinSectionFR =
+      p(`L'achat groupé <strong>${dealTitle}</strong> est maintenant terminé; vous n'avez rien d'autre à faire. Aucun montant n'a été débité, et le blocage temporaire sur votre carte a été levé.`);
+  }
+
+  const content = `
+    <!-- EN — Le français suit. -->
+    ${p('<em>Le français suit.</em>', true)}
+    ${h1(`Your order for ${dealTitle} was cancelled — you weren't charged`)}
+    ${p(greetingEN)}
+    ${p(`We've cancelled your order for <strong>${dealTitle}</strong> before any payment was taken.`)}
+    ${p(
+      `When you join a group buy, your bank places a temporary hold on your card until the deal closes. ` +
+      `In your case, that hold would have ended before <strong>${dealTitle}</strong> ${closesOrClosedEN} ` +
+      `<strong>${closeDateEN}</strong>, so we couldn't have completed your order properly.`
+    )}
+    ${variant !== 'deal_closed' ? p(`This doesn't mean anything is wrong with your card, and you haven't been charged. The hold has been released; depending on your bank, it may take a few days to disappear from your account.`) : ''}
+    ${rejoinSectionEN}
+    ${p(`Questions? Reach us at <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.`, true)}
+    ${p('Alex<br/>Neighbours Club', true)}
+
+    <hr style="border:none;border-top:1px solid #e5e7eb;margin:28px 0;"/>
+
+    <!-- FR -->
+    ${h1(`Votre commande pour ${dealTitle} a été annulée — aucun montant débité`)}
+    ${p(greetingFR)}
+    ${p(`Nous avons annulé votre commande pour <strong>${dealTitle}</strong> avant tout paiement.`)}
+    ${p(
+      `Quand vous participez à un achat groupé, votre banque bloque temporairement le montant sur votre carte ` +
+      `jusqu'à la fermeture de l'offre. Dans votre cas, ce blocage aurait pris fin avant la fermeture de ` +
+      `l'achat groupé <strong>${dealTitle}</strong>, ${closesOrClosedFR} <strong>${closeDateFR}</strong>, ` +
+      `et nous n'aurions pas pu finaliser votre commande.`
+    )}
+    ${variant !== 'deal_closed' ? p(`Cela ne veut pas dire que votre carte pose problème, et aucun montant n'a été débité. Le blocage a été levé; selon votre banque, il pourrait prendre quelques jours à disparaître de votre compte.`) : ''}
+    ${rejoinSectionFR}
+    ${p(`Besoin d'aide? Écrivez-nous à <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.`, true)}
+    ${p('Alex<br/>Neighbours Club', true)}
+  `;
+
+  return send({
+    to,
+    subject: `Your order for ${dealTitle} was cancelled — you weren't charged`,
+    html: baseTemplate(content),
+    idempotencyKey,
+  });
+}
+
 // ─── Internal send helper ─────────────────────────────────────────────────────
 
 async function send(params: {
@@ -657,19 +907,27 @@ async function send(params: {
   subject: string;
   html: string;
   headers?: Record<string, string>;
-}) {
+  idempotencyKey?: string;
+}): Promise<boolean> {
   try {
-    const { error } = await resend.emails.send({
-      from: FROM,
-      to: params.to,
-      subject: params.subject,
-      html: params.html,
-      headers: params.headers,
-    });
+    const { error } = await resend.emails.send(
+      {
+        from: FROM,
+        to: params.to,
+        subject: params.subject,
+        html: params.html,
+        headers: params.headers,
+        replyTo: SUPPORT_EMAIL,
+      },
+      params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : undefined,
+    );
     if (error) {
       console.error("[email] Resend error:", error);
+      return false;
     }
+    return true;
   } catch (err) {
     console.error("[email] Failed to send email to", params.to, err);
+    return false;
   }
 }
