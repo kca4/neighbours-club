@@ -55,6 +55,7 @@ export default async function EditDealPage({
     maxQuantityPerMember: String(deal.maxQuantityPerMember),
     opensAt: toLocal(deal.opensAt),
     closesAt: toLocal(deal.closesAt),
+    supplierCutoffAt: deal.supplierCutoffAt ? toLocal(deal.supplierCutoffAt) : "",
     pickupLocation: deal.pickupLocation,
     pickupAddress: deal.pickupAddress,
     pickupWindowStart: toLocal(deal.pickupWindowStart),

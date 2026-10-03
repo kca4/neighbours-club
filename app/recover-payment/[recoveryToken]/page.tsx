@@ -27,6 +27,7 @@ export default async function RecoveryPaymentPage({
       id: true,
       status: true,
       quantity: true,
+      recoveryExpiresAt: true,
       deal: {
         select: {
           title: true,
@@ -40,22 +41,98 @@ export default async function RecoveryPaymentPage({
     },
   });
 
+  const supportEmail =
+    process.env.MEMBER_SUPPORT_EMAIL ??
+    (process.env.EMAIL_FROM?.match(/<(.+?)>/)?.[1] ?? 'hello@neighborsclub.ca');
+
   // ── Not found ──────────────────────────────────────────────────────────────
   if (!order) {
     return (
       <main className="mx-auto max-w-lg px-4 py-16 sm:px-6 text-center">
         <div className="rounded-2xl border border-foreground/10 bg-white p-8">
+          {/* English */}
           <p className="mb-2 text-xl font-bold text-foreground">
-            Recovery link not valid
+            We couldn&apos;t find this payment link
           </p>
-          <p className="mb-6 text-sm text-foreground/60">
-            This link may have already been used or may have expired.
+          <p className="mb-4 text-sm text-foreground/60">
+            Please check that you used the full link from your email. Questions? Reach us at{" "}
+            <a href={`mailto:${supportEmail}`} className="text-primary hover:underline">
+              {supportEmail}
+            </a>
           </p>
           <Link
             href="/my-deals"
             className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary px-6 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
           >
             Go to My Deals
+          </Link>
+
+          <hr className="my-6 border-foreground/10" />
+
+          {/* Français */}
+          <p className="mb-2 text-xl font-bold text-foreground">
+            Lien de paiement introuvable
+          </p>
+          <p className="mb-4 text-sm text-foreground/60">
+            Nous n&apos;avons pas trouvé ce lien de paiement. Vérifiez que vous avez utilisé le lien complet reçu par courriel. Des questions? Écrivez-nous à{" "}
+            <a href={`mailto:${supportEmail}`} className="text-primary hover:underline">
+              {supportEmail}
+            </a>
+          </p>
+          <Link
+            href="/my-deals"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary px-6 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+          >
+            Voir mes achats groupés
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  // ── Recovery window expired ────────────────────────────────────────────────
+  if (order.recoveryExpiresAt && order.recoveryExpiresAt <= new Date()) {
+    return (
+      <main className="mx-auto max-w-lg px-4 py-16 sm:px-6 text-center">
+        <div className="rounded-2xl border border-foreground/10 bg-white p-8">
+          {/* English */}
+          <p className="mb-2 text-xl font-bold text-foreground">
+            Payment link expired
+          </p>
+          <p className="mb-4 text-sm text-foreground/60">
+            This payment link has expired. The payment deadline for{" "}
+            <strong>{order.deal.title}</strong> has passed, so your order was cancelled.
+            You haven&apos;t been charged. Questions? Reach us at{" "}
+            <a href={`mailto:${supportEmail}`} className="text-primary hover:underline">
+              {supportEmail}
+            </a>
+          </p>
+          <Link
+            href="/my-deals"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary px-6 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+          >
+            Go to My Deals
+          </Link>
+
+          <hr className="my-6 border-foreground/10" />
+
+          {/* Français */}
+          <p className="mb-2 text-xl font-bold text-foreground">
+            Lien de paiement expiré
+          </p>
+          <p className="mb-4 text-sm text-foreground/60">
+            Ce lien de paiement a expiré. La date limite de paiement pour l&apos;achat groupé{" "}
+            <strong>{order.deal.title}</strong> est passée; votre commande a donc été annulée.
+            Aucun montant n&apos;a été débité. Des questions? Écrivez-nous à{" "}
+            <a href={`mailto:${supportEmail}`} className="text-primary hover:underline">
+              {supportEmail}
+            </a>
+          </p>
+          <Link
+            href="/my-deals"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary px-6 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+          >
+            Voir mes achats groupés
           </Link>
         </div>
       </main>
@@ -64,29 +141,60 @@ export default async function RecoveryPaymentPage({
 
   // ── Already resolved ───────────────────────────────────────────────────────
   if (order.status !== OrderStatus.CAPTURE_FAILED) {
-    const statusLabel: Record<string, string> = {
-      CAPTURED: "already charged",
-      PICKED_UP: "picked up",
+    // Mapped statuses render label-in-sentence copy.
+    // NO_SHOW and any unmapped status render generic copy (no raw status value exposed).
+    const statusLabelEN: Record<string, string> = {
+      CAPTURED: "already paid",
+      PICKED_UP: "already picked up",
       VOIDED: "cancelled",
       REFUNDED: "refunded",
-      NO_SHOW: "marked no-show",
     };
-    const label = statusLabel[order.status] ?? order.status.toLowerCase();
+    const statusLabelFR: Record<string, string> = {
+      CAPTURED: "déjà payée",
+      PICKED_UP: "déjà récupérée",
+      VOIDED: "annulée",
+      REFUNDED: "remboursée",
+    };
+    const labelEN = statusLabelEN[order.status] ?? null;
+    const labelFR = statusLabelFR[order.status] ?? null;
 
     return (
       <main className="mx-auto max-w-lg px-4 py-16 sm:px-6 text-center">
         <div className="rounded-2xl border border-foreground/10 bg-white p-8">
+          {/* English */}
           <p className="mb-2 text-xl font-bold text-foreground">
             No payment needed
           </p>
-          <p className="mb-6 text-sm text-foreground/60">
-            This order is {label} — no further action is required.
+          <p className="mb-4 text-sm text-foreground/60">
+            {labelEN
+              ? <>This order is {labelEN} — no further action is required.</>
+              : <>No further payment is needed for this order.</>
+            }
           </p>
           <Link
             href="/my-deals"
             className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary px-6 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
           >
             Go to My Deals
+          </Link>
+
+          <hr className="my-6 border-foreground/10" />
+
+          {/* Français */}
+          <p className="mb-2 text-xl font-bold text-foreground">
+            Aucun paiement requis
+          </p>
+          <p className="mb-4 text-sm text-foreground/60">
+            {labelFR
+              ? <>Cette commande est {labelFR}; aucune autre action n&apos;est requise.</>
+              : <>Aucun autre paiement n&apos;est requis pour cette commande.</>
+            }
+          </p>
+          <Link
+            href="/my-deals"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary px-6 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+          >
+            Voir mes achats groupés
           </Link>
         </div>
       </main>

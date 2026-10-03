@@ -177,6 +177,7 @@ export default function JoinDealForm({
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [richError, setRichError] = useState<{ en: string; fr: string } | null>(null);
 
   const maxAmount = tier1PriceDollars * quantity;
 
@@ -192,6 +193,7 @@ export default function JoinDealForm({
       e.preventDefault();
       setSubmitting(true);
       setError(null);
+      setRichError(null);
 
       try {
         const res = await fetch(`/api/deals/${slug}/join`, {
@@ -203,8 +205,16 @@ export default function JoinDealForm({
         const data: unknown = await res.json();
 
         if (!res.ok) {
-          const errData = data as { error?: string };
-          setError(errData?.error ?? "Something went wrong. Please try again.");
+          const errData = data as { error?: string; messageEN?: string; messageFR?: string };
+          const code = errData?.error;
+          if (
+            (code === 'REJOIN_TOO_EARLY' || code === 'REJOIN_NOT_POSSIBLE') &&
+            errData.messageEN
+          ) {
+            setRichError({ en: errData.messageEN, fr: errData.messageFR ?? '' });
+          } else {
+            setError(code ?? 'Something went wrong. Please try again.');
+          }
           return;
         }
 
@@ -290,6 +300,17 @@ export default function JoinDealForm({
         </p>
       </div>
 
+      {richError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-3">
+          <p>{richError.en}</p>
+          {richError.fr && (
+            <>
+              <hr className="border-amber-200" />
+              <p>{richError.fr}</p>
+            </>
+          )}
+        </div>
+      )}
       {error && (
         <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}

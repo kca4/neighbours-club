@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { DealStatus, OrderStatus } from "@prisma/client";
+import { calcFinalPaidUnits } from "@/lib/groupbuy/supplier-quantity";
 import { DealStatusBadge, OrderStatusBadge } from "@/components/admin/StatusBadge";
 import DealActions from "./DealActions";
 import CopyButton from "./CopyButton";
@@ -56,6 +57,7 @@ export default async function DealDetailPage({
   ).length;
 
   const isFulfilling = deal.status === DealStatus.FULFILLING;
+  const finalPaidUnits = calcFinalPaidUnits(deal.orders);
 
   const detailRows = [
     { label: "Slug", value: deal.slug },
@@ -127,6 +129,12 @@ export default async function DealDetailPage({
           </p>
           <p className="text-xs text-foreground/50">Minimum needed</p>
         </div>
+        {finalPaidUnits > 0 && (
+          <div className="text-center">
+            <p className="text-2xl font-bold text-primary">{finalPaidUnits}</p>
+            <p className="text-xs text-foreground/50">Final paid qty</p>
+          </div>
+        )}
       </div>
 
       {/* Description */}

@@ -21,6 +21,7 @@ export interface DealFormData {
   maxQuantityPerMember: string;
   opensAt: string;
   closesAt: string;
+  supplierCutoffAt: string;
   pickupLocation: string;
   pickupAddress: string;
   pickupWindowStart: string;
@@ -98,6 +99,7 @@ export default function DealForm({
     maxQuantityPerMember: initialData?.maxQuantityPerMember ?? "1",
     opensAt: initialData?.opensAt ?? "",
     closesAt: initialData?.closesAt ?? "",
+    supplierCutoffAt: initialData?.supplierCutoffAt ?? "",
     pickupLocation: initialData?.pickupLocation ?? "",
     pickupAddress: initialData?.pickupAddress ?? "",
     pickupWindowStart: initialData?.pickupWindowStart ?? "",
@@ -193,6 +195,7 @@ export default function DealForm({
           maxQuantityPerMember: parseInt(form.maxQuantityPerMember, 10),
           opensAt: fromDatetimeLocal(form.opensAt),
           closesAt: fromDatetimeLocal(form.closesAt),
+          supplierCutoffAt: form.supplierCutoffAt ? fromDatetimeLocal(form.supplierCutoffAt) : null,
           pickupLocation: form.pickupLocation,
           pickupAddress: form.pickupAddress,
           pickupWindowStart: fromDatetimeLocal(form.pickupWindowStart),
@@ -440,7 +443,7 @@ export default function DealForm({
       <section>
         <h3 className="admin-section-heading">
           Timeline
-          {isOpen && <span className="ml-2 text-xs font-normal text-amber-600">(opensAt/closesAt locked)</span>}
+          {isOpen && <span className="ml-2 text-xs font-normal text-amber-600">(opensAt/closesAt/supplierCutoffAt locked)</span>}
         </h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -465,6 +468,38 @@ export default function DealForm({
             />
             {errors.closesAt && <p className="admin-error">{errors.closesAt}</p>}
           </div>
+        </div>
+        <div className="mt-4">
+          <label className="admin-label">
+            Supplier cutoff (UTC) <span className="text-red-500">*</span>
+            {isOpen && <span className="ml-2 text-xs text-amber-600">(locked)</span>}
+            <span className="ml-2 text-xs text-foreground/40">— latest time to submit final paid quantities to supplier; must be after closesAt and before pickup</span>
+          </label>
+          <input
+            type="datetime-local"
+            value={form.supplierCutoffAt}
+            disabled={disabled("supplierCutoffAt")}
+            onChange={(e) => set("supplierCutoffAt", e.target.value)}
+            className="admin-input"
+          />
+          {errors.supplierCutoffAt && <p className="admin-error">{errors.supplierCutoffAt}</p>}
+          {(() => {
+            if (!form.closesAt || !form.supplierCutoffAt) return null;
+            const closesAtDate = new Date(form.closesAt);
+            const cutoffDate = new Date(form.supplierCutoffAt);
+            if (isNaN(closesAtDate.getTime()) || isNaN(cutoffDate.getTime())) return null;
+            const diffMs = cutoffDate.getTime() - closesAtDate.getTime();
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            if (diffHours <= 0 || diffHours >= 72) return null;
+            const label = diffHours < 24
+              ? `${diffHours} hour${diffHours !== 1 ? 's' : ''}`
+              : `${Math.floor(diffHours / 24)} day${Math.floor(diffHours / 24) !== 1 ? 's' : ''}`;
+            return (
+              <p className="mt-1 text-xs text-amber-700">
+                Warning: Members will have only {label} to complete a failed payment before the recovery window closes. Ensure this allows enough time for members to respond.
+              </p>
+            );
+          })()}
         </div>
       </section>
 
