@@ -56,6 +56,7 @@ export const dealCreateSchema = z
     maxQuantityPerMember: z.number().int().min(1).default(1),
     opensAt: z.string().min(1),
     closesAt: z.string().min(1),
+    supplierCutoffAt: z.string().nullable().optional(),
     pickupLocation: z.string().min(1).max(200),
     pickupAddress: z.string().min(1).max(300),
     pickupWindowStart: z.string().min(1),
@@ -110,6 +111,32 @@ export const dealCreateSchema = z
         message: "pickupWindowEnd must be after pickupWindowStart",
         path: ["pickupWindowEnd"],
       });
+    }
+
+    if (data.supplierCutoffAt) {
+      const supplierCutoffAt = new Date(data.supplierCutoffAt);
+      if (isNaN(supplierCutoffAt.getTime())) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid supplierCutoffAt date",
+          path: ["supplierCutoffAt"],
+        });
+      } else {
+        if (supplierCutoffAt <= closesAt) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Supplier cutoff must be after closesAt",
+            path: ["supplierCutoffAt"],
+          });
+        }
+        if (supplierCutoffAt >= pickupStart) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Supplier cutoff must be before pickup window start",
+            path: ["supplierCutoffAt"],
+          });
+        }
+      }
     }
 
     if (
@@ -194,5 +221,6 @@ export const LOCKED_WHEN_OPEN = [
   "maxQuantityPerMember",
   "opensAt",
   "closesAt",
+  "supplierCutoffAt",
   "tiers",
 ] as const;

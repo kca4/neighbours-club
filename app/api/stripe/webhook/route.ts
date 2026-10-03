@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { OrderStatus } from "@prisma/client";
 import type Stripe from "stripe";
 import { sendOrderAuthorized } from "@/lib/email";
+import { sendAdminAlert } from "@/lib/admin-alert";
+import { sendAuthExpiryEmailForOrder } from "@/lib/groupbuy/auth-expiry";
 
 // Next.js App Router: disable body parsing so we can read the raw bytes
 // for Stripe signature verification.
@@ -41,10 +43,12 @@ export async function POST(req: NextRequest) {
           status: true,
           quantity: true,
           maxAuthorizedAmount: true,
+          createdAt: true,
           user: { select: { email: true, name: true } },
           deal: {
             select: {
               title: true,
+              slug: true,
               closesAt: true,
               pickupLocation: true,
               pickupAddress: true,
@@ -77,8 +81,103 @@ export async function POST(req: NextRequest) {
           }),
         ]);
 
-        // Send confirmation email (non-blocking)
-        await sendOrderAuthorized({
+        // Retrieve capture_before from the charge attached to this PaymentIntent.
+        // Stored for the close-time pre-check (defense-in-depth), but also checked
+        // immediately here: if the auth cannot survive until deal.closesAt + safety margin,
+        // void the order now rather than silently leaving it AUTHORIZED until close time.
+        //
+        // State chosen for early void: VOIDED (not CAPTURE_FAILED — Stripe has not failed
+        // a capture; we are cancelling the authorization proactively).
+        //
+        // Member notification wording is pending review (Issue 2). A TODO stub is left
+        // below; the admin alert fires in the meantime.
+        let voidedDueToExpiry = false;
+        try {
+          const piExpanded = await stripe.paymentIntents.retrieve(pi.id, {
+            expand: ['latest_charge'],
+          });
+          const charge = piExpanded.latest_charge as import('stripe').default.Charge | null;
+          const captureBeforeUnix =
+            (charge?.payment_method_details as { card?: { capture_before?: number } } | null)
+              ?.card?.capture_before ?? null;
+
+          if (captureBeforeUnix) {
+            const captureBeforeAt = new Date(captureBeforeUnix * 1000);
+
+            // Store the expiry timestamp for close-time defense-in-depth check
+            await prisma.order.update({
+              where: { id: order.id },
+              data: { captureBeforeAt },
+            });
+
+            // Immediate expiry check: will the auth survive until closesAt + margin?
+            const safetyMinutes = parseInt(
+              process.env.AUTH_EXPIRY_SAFETY_MINUTES ?? '30',
+              10,
+            );
+            const closesAtWithMargin = new Date(
+              order.deal.closesAt.getTime() + safetyMinutes * 60 * 1000,
+            );
+
+            if (captureBeforeAt < closesAtWithMargin) {
+              // Auth will expire before the deal can be captured — void proactively.
+              await prisma.$transaction([
+                prisma.order.update({
+                  where: { id: order.id },
+                  data: { status: OrderStatus.VOIDED },
+                }),
+                prisma.auditLog.create({
+                  data: {
+                    action: 'ORDER_VOIDED_AUTH_EXPIRY_RISK',
+                    entityType: 'Order',
+                    entityId: order.id,
+                    metadata: {
+                      captureBeforeAt: captureBeforeAt.toISOString(),
+                      dealClosesAt: order.deal.closesAt.toISOString(),
+                      safetyMinutes,
+                      stripePaymentIntentId: pi.id,
+                      eventId: event.id,
+                    },
+                  },
+                }),
+              ]);
+
+              // Cancel the PI (non-blocking — payment_intent.canceled webhook will confirm)
+              stripe.paymentIntents.cancel(pi.id).catch(err => {
+                console.error(
+                  '[webhook] Failed to cancel PI after auth expiry detection:',
+                  pi.id,
+                  err,
+                );
+              });
+
+              // Alert admin (non-blocking)
+              sendAdminAlert(
+                'AUTH_EXPIRY_RISK',
+                `auth_expiry:${order.id}`,
+                `Order ${order.id} voided: auth expires ${captureBeforeAt.toISOString()} ` +
+                  `before deal closes ${order.deal.closesAt.toISOString()} + ${safetyMinutes}min margin. ` +
+                  `PI ${pi.id} cancellation requested.`,
+              ).catch(e => console.error('[webhook] sendAdminAlert failed:', e));
+
+              // Notify member (first attempt — cron retries on failure).
+              // Awaited so that transient failures are visible in webhook logs.
+              // A non-null return is not fatal; cron will retry and alert at MAX_ATTEMPTS.
+              const authExpiryEmailErr = await sendAuthExpiryEmailForOrder(order.id);
+              if (authExpiryEmailErr) {
+                console.error('[webhook] sendAuthExpiryEmailForOrder failed:', authExpiryEmailErr);
+              }
+
+              voidedDueToExpiry = true;
+            }
+          }
+        } catch (err) {
+          // Non-blocking — close-time pre-check is defense-in-depth if this fails
+          console.error('[webhook] Failed to retrieve captureBeforeAt for order', order.id, err);
+        }
+
+        // Send confirmation email only if the order was not immediately voided
+        if (!voidedDueToExpiry) await sendOrderAuthorized({
           to: order.user.email,
           memberName: order.user.name,
           dealTitle: order.deal.title,

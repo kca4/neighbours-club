@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { DealStatus, OrderStatus } from "@prisma/client";
+import { cancelCloseMessage } from "@/lib/groupbuy/qstash";
 
 async function requireAdmin() {
   const session = await auth();
@@ -26,7 +27,7 @@ export async function POST(
 
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, qstashMessageId: true },
   });
 
   if (!deal) {
@@ -38,6 +39,16 @@ export async function POST(
       { error: `Only OPEN deals can be cancelled. Current status: ${deal.status}` },
       { status: 400 },
     );
+  }
+
+  // Cancel the QStash deadline message if one exists.
+  // Non-blocking: stale QStash messages are harmless (the endpoint re-checks deal state).
+  if (deal.qstashMessageId) {
+    try {
+      await cancelCloseMessage(deal.qstashMessageId);
+    } catch (err) {
+      console.warn('[cancel-deal] QStash message cancel failed:', err);
+    }
   }
 
   // Fetch all active orders on this deal

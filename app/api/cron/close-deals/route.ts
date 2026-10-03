@@ -1,492 +1,185 @@
 /**
- * Deal-closure cron — POST /api/cron/close-deals
+ * Deal-closure reconciliation cron — POST /api/cron/close-deals
  *
  * Auth: Accepts EITHER of:
  *   - x-cron-secret header matching CRON_SECRET env var  (local dev / manual invocation)
- *   - x-vercel-cron header set by Vercel Cron in production (Vercel does not forward our secret)
+ *   - x-vercel-cron header set by Vercel Cron in production
  *
- * Schedule: every 5 minutes (see vercel.json)
+ * Schedule: daily at 04:00 UTC (see vercel.json) — RECONCILIATION only.
+ * Primary deal-close triggers are one-shot QStash messages enqueued at publish time.
  *
- * For each OPEN deal whose closesAt has passed and closingProcessedAt is null:
- *   Branch A (threshold met)  → CLOSING_SUCCESS → capture payments → FULFILLING
- *   Branch B (threshold miss) → CLOSING_FAILED  → void all orders  → CANCELLED
+ * This job repairs three classes of deals that QStash did not (or could not) handle:
+ *   1. OPEN deals past their deadline (QStash message lost or not enqueued)
+ *   2. CLOSING_SUCCESS deals with unfinished captures (process crashed mid-loop)
+ *   3. CLOSING_FAILED deals with unfinished voids (process crashed mid-loop)
  *
- * The closingProcessedAt field is set inside the first transaction that also
- * moves the deal status, ensuring the cron is idempotent even if the process
- * dies mid-way through the Stripe calls.
+ * All three cases delegate to closeOneDeal(), which is idempotent and resumable.
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { stripe } from "@/lib/stripe";
-import { DealStatus, OrderStatus } from "@prisma/client";
-import {
-  sendDealClosedSuccess,
-  sendDealClosedFailed,
-  sendOrderCaptureFailed,
-} from "@/lib/email";
-import { earnCP } from "@/lib/cp";
-import { CP_REWARDS } from "@/lib/cp/rewards";
-
-// ─── CP vesting helper ────────────────────────────────────────────────────────
-//
-// Called AFTER the capture $transaction commits, on BOTH the normal-capture
-// and isAlreadyCaptured paths. Never called on CAPTURE_FAILED, voided orders,
-// or Branch-B (threshold-not-met) orders.
-//
-// Idempotency: earnCP inserts a WalletLedger row keyed by
-//   @@unique([walletId, referenceId, reason]).
-// referenceId = `group_buy_reward:${orderId}` and reason = 'group_buy_reward'
-// are identical on every run for the same order. If the first cron run committed
-// CAPTURED then crashed before vesting, the next run re-enters via
-// isAlreadyCaptured, commits CAPTURED again (idempotent), then calls this helper
-// — which vests because the ledger row was never written. If vesting had already
-// succeeded, earnCP returns { deduped: true } and no second grant is made.
-// Either way the participant ends with exactly 1 × group_buy_reward CP.
-//
-// An unexpected earnCP error is logged but does NOT abort the cron or affect
-// the already-committed capture — the vest will self-heal on the next run.
-async function vestGroupBuyReward(userId: string, orderId: string): Promise<void> {
-  try {
-    const result = await earnCP({
-      userId,
-      amount: CP_REWARDS.group_buy_reward,
-      reason: "group_buy_reward",
-      referenceId: `group_buy_reward:${orderId}`,
-    });
-    if (result.deduped) {
-      // Already vested on a prior run — idempotent success, nothing to do.
-    }
-  } catch (err) {
-    // Unexpected error (not the P2002/deduped case, which earnCP handles
-    // internally). Log clearly; do not rethrow — capture already committed
-    // and the vest will self-heal on the next cron run.
-    console.error("[close-deals] vestGroupBuyReward unexpected error for order", orderId, err);
-  }
-}
-
-// Stripe error codes/messages that indicate the operation already happened.
-function isAlreadyCaptured(err: unknown): boolean {
-  const e = err as { code?: string; message?: string };
-  return (
-    e?.code === "charge_already_captured" ||
-    (e?.message ?? "").toLowerCase().includes("already been captured") ||
-    (e?.message ?? "").toLowerCase().includes("already captured")
-  );
-}
-
-function isAlreadyCanceled(err: unknown): boolean {
-  const e = err as { code?: string; message?: string };
-  return (
-    (e?.message ?? "").toLowerCase().includes("already canceled") ||
-    (e?.message ?? "").toLowerCase().includes("already cancelled") ||
-    (e?.message ?? "").toLowerCase().includes("cannot be canceled") ||
-    (e?.message ?? "").toLowerCase().includes("cannot be cancelled")
-  );
-}
-
-type CronResult =
-  | {
-      dealId: string;
-      outcome: "CLOSED_SUCCESS";
-      confirmedCount: number;
-      finalTier: number;
-      captured: number;
-      captureFailed: number;
-    }
-  | {
-      dealId: string;
-      outcome: "CLOSED_FAILED";
-      confirmedCount: number;
-      threshold: number;
-      voided: number;
-    };
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { DealStatus, OrderStatus } from '@prisma/client';
+import { closeOneDeal } from '@/lib/groupbuy/close-deal';
+import { sendAdminAlert } from '@/lib/admin-alert';
+import { sendAuthExpiryEmailForOrder } from '@/lib/groupbuy/auth-expiry';
 
 export async function POST(req: NextRequest) {
-  const cronSecret = req.headers.get("x-cron-secret");
-  const vercelCron = req.headers.get("x-vercel-cron");
+  const cronSecret = req.headers.get('x-cron-secret');
+  const vercelCron = req.headers.get('x-vercel-cron');
 
   const authorized =
-    vercelCron === "1" || // Vercel Cron sets this header
+    vercelCron === '1' ||
     (cronSecret && cronSecret === process.env.CRON_SECRET);
 
   if (!authorized) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const now = new Date();
 
-  const dealsToClose = await prisma.deal.findMany({
+  // ── 1. OPEN deals past deadline ────────────────────────────────────────────
+  const overdueOpen = await prisma.deal.findMany({
     where: {
       status: DealStatus.OPEN,
       closesAt: { lte: now },
-      closingProcessedAt: null,
     },
-    include: {
-      tiers: { orderBy: { tierOrder: "asc" } },
+    select: { id: true },
+  });
+
+  // ── 2. CLOSING_SUCCESS with unfinished captures ────────────────────────────
+  const stuckSuccess = await prisma.deal.findMany({
+    where: {
+      status: DealStatus.CLOSING_SUCCESS,
+      orders: { some: { status: OrderStatus.AUTHORIZED } },
+    },
+    select: { id: true },
+  });
+
+  // ── 3. CLOSING_FAILED with unfinished voids ────────────────────────────────
+  const stuckFailed = await prisma.deal.findMany({
+    where: {
+      status: DealStatus.CLOSING_FAILED,
       orders: {
-        where: {
-          status: {
-            in: [OrderStatus.AUTHORIZED, OrderStatus.PENDING_AUTHORIZATION],
-          },
-        },
-        select: {
-          id: true,
-          status: true,
-          quantity: true,
-          stripePaymentIntentId: true,
-          user: { select: { id: true, email: true, name: true } },
+        some: {
+          status: { in: [OrderStatus.AUTHORIZED, OrderStatus.PENDING_AUTHORIZATION] },
         },
       },
     },
+    select: { id: true },
   });
 
-  const results: CronResult[] = [];
+  const dealIds = [
+    ...new Set([
+      ...overdueOpen.map((d) => d.id),
+      ...stuckSuccess.map((d) => d.id),
+      ...stuckFailed.map((d) => d.id),
+    ]),
+  ];
 
-  for (const deal of dealsToClose) {
-    const authorizedOrders = deal.orders.filter(
-      (o) => o.status === OrderStatus.AUTHORIZED,
-    );
-    const pendingOrders = deal.orders.filter(
-      (o) => o.status === OrderStatus.PENDING_AUTHORIZATION,
-    );
-    const confirmedCount = authorizedOrders.length;
+  const results = [];
 
-    // Determine final tier: find the highest tier whose minMembers <= confirmedCount
-    const sortedTiers = [...deal.tiers].sort(
-      (a, b) => a.tierOrder - b.tierOrder,
-    );
-    const finalTier =
-      [...sortedTiers].reverse().find((t) => confirmedCount >= t.minMembers) ??
-      null;
-    const tierIndex = finalTier
-      ? sortedTiers.findIndex((t) => t.id === finalTier.id)
-      : -1;
-    const tierPrice = finalTier ? Number(finalTier.pricePerUnit) : 0;
+  for (const dealId of dealIds) {
+    try {
+      const result = await closeOneDeal(dealId, now);
 
-    if (confirmedCount >= deal.minimumMembers && finalTier) {
-      // ─── Branch A: threshold met ──────────────────────────────────────────────
-
-      // Atomically mark deal as CLOSING_SUCCESS + set closingProcessedAt.
-      // This prevents the cron from re-processing even if later steps fail.
-      await prisma.deal.update({
-        where: { id: deal.id },
-        data: {
-          status: DealStatus.CLOSING_SUCCESS,
-          finalPrice: tierPrice,
-          finalTierIndex: tierIndex,
-          closingProcessedAt: now,
-        },
-      });
-
-      let capturedCount = 0;
-      let captureFailedCount = 0;
-
-      // Capture each AUTHORIZED order
-      for (const order of authorizedOrders) {
-        const captureAmountCents = Math.round(tierPrice * order.quantity * 100);
-        const finalAmountDollars = tierPrice * order.quantity;
-
-        try {
-          if (order.stripePaymentIntentId) {
-            await stripe.paymentIntents.capture(
-              order.stripePaymentIntentId,
-              { amount_to_capture: captureAmountCents },
-            );
-          }
-
-          await prisma.$transaction([
-            prisma.order.update({
-              where: { id: order.id },
-              data: {
-                status: OrderStatus.CAPTURED,
-                finalAmount: finalAmountDollars,
-              },
-            }),
-            prisma.auditLog.create({
-              data: {
-                action: "ORDER_CAPTURED",
-                entityType: "Order",
-                entityId: order.id,
-                metadata: {
-                  dealId: deal.id,
-                  captureAmountCents,
-                  finalAmountDollars,
-                  stripePaymentIntentId: order.stripePaymentIntentId,
-                },
-              },
-            }),
-          ]);
-          // Vest CP after the capture transaction commits (Option A: separate tx).
-          // Self-heals on retry — see vestGroupBuyReward comment for full reasoning.
-          await vestGroupBuyReward(order.user.id, order.id);
-          capturedCount++;
-        } catch (err: unknown) {
-          if (isAlreadyCaptured(err)) {
-            // Idempotent — treat as success
-            await prisma.$transaction([
-              prisma.order.update({
-                where: { id: order.id },
-                data: {
-                  status: OrderStatus.CAPTURED,
-                  finalAmount: finalAmountDollars,
-                },
-              }),
-              prisma.auditLog.create({
-                data: {
-                  action: "ORDER_CAPTURED",
-                  entityType: "Order",
-                  entityId: order.id,
-                  metadata: {
-                    dealId: deal.id,
-                    idempotent: true,
-                    stripePaymentIntentId: order.stripePaymentIntentId,
-                  },
-                },
-              }),
-            ]);
-            // Vest CP on this path too — this is the self-healing path.
-            // If the cron crashed after committing CAPTURED but before vesting,
-            // the next run enters here. earnCP dedupes if already vested.
-            await vestGroupBuyReward(order.user.id, order.id);
-            capturedCount++;
-            continue;
-          }
-
-          const e = err as { message?: string };
-          console.error(
-            "[close-deals] Capture failed for order",
-            order.id,
-            e?.message,
+      // Alert on email errors
+      for (const emailErr of result.emailErrors) {
+        const isMaxAttempts = emailErr.startsWith(
+          'CAPTURE_FAILED_RECOVERY_EMAIL_MAX_ATTEMPTS:',
+        );
+        if (isMaxAttempts) {
+          const orderId = emailErr.split(':')[1];
+          await sendAdminAlert(
+            'CAPTURE_FAILED_EMAIL_MAX_ATTEMPTS',
+            `capture_failed_email:${orderId}`,
+            `Capture-failed recovery email has exceeded max send attempts for order ${orderId}.`,
           );
-
-          // Generate a recovery token so the member can pay via the recovery page
-          const recoveryToken = crypto.randomUUID();
-          await prisma.$transaction([
-            prisma.order.update({
-              where: { id: order.id },
-              data: { status: OrderStatus.CAPTURE_FAILED, recoveryToken },
-            }),
-            prisma.auditLog.create({
-              data: {
-                action: "ORDER_CAPTURE_FAILED",
-                entityType: "Order",
-                entityId: order.id,
-                metadata: {
-                  dealId: deal.id,
-                  stripeError: e?.message ?? null,
-                  stripePaymentIntentId: order.stripePaymentIntentId,
-                  recoveryToken,
-                },
-              },
-            }),
-          ]);
-
-          // Notify member their payment failed and provide recovery link
-          await sendOrderCaptureFailed({
-            to: order.user.email,
-            memberName: order.user.name,
-            dealTitle: deal.title,
-            amountOwed: tierPrice * order.quantity,
-            recoveryToken,
-          });
-
-          captureFailedCount++;
+        } else {
+          console.error('[close-deals] Email error during close:', emailErr);
         }
       }
 
-      // Void any PENDING_AUTHORIZATION orders (stragglers the abandonment cron missed)
-      for (const order of pendingOrders) {
-        if (order.stripePaymentIntentId) {
-          try {
-            await stripe.paymentIntents.cancel(order.stripePaymentIntentId);
-          } catch (err: unknown) {
-            if (!isAlreadyCanceled(err)) {
-              const e = err as { message?: string };
-              console.warn(
-                "[close-deals] Could not cancel pending PI:",
-                order.stripePaymentIntentId,
-                e?.message,
-              );
-            }
-          }
-        }
-
-        await prisma.$transaction([
-          prisma.order.update({
-            where: { id: order.id },
-            data: { status: OrderStatus.VOIDED },
-          }),
-          prisma.auditLog.create({
-            data: {
-              action: "ORDER_VOIDED_BY_DEAL_CLOSURE_PENDING",
-              entityType: "Order",
-              entityId: order.id,
-              metadata: {
-                dealId: deal.id,
-                stripePaymentIntentId: order.stripePaymentIntentId,
-              },
-            },
-          }),
-        ]);
+      // Alert on capture failures
+      if (result.captureFailedCount > 0) {
+        await sendAdminAlert(
+          'CAPTURE_FAILED',
+          `capture_failed:${dealId}`,
+          `Reconciliation: deal ${dealId} has ${result.captureFailedCount} CAPTURE_FAILED order(s).`,
+        );
       }
 
-      // Transition deal to FULFILLING
-      await prisma.$transaction([
-        prisma.deal.update({
-          where: { id: deal.id },
-          data: { status: DealStatus.FULFILLING },
-        }),
-        prisma.auditLog.create({
-          data: {
-            action: "DEAL_CLOSED_SUCCESS",
-            entityType: "Deal",
-            entityId: deal.id,
-            metadata: {
-              confirmedCount,
-              finalTierIndex: tierIndex,
-              capturedCount,
-              captureFailedCount,
-            },
-          },
-        }),
-      ]);
-
-      // Notify all successfully captured members
-      for (const order of authorizedOrders) {
-        const totalCharged = tierPrice * order.quantity;
-        await sendDealClosedSuccess({
-          to: order.user.email,
-          memberName: order.user.name,
-          dealTitle: deal.title,
-          finalPricePerUnit: tierPrice,
-          quantity: order.quantity,
-          totalCharged,
-          pickupLocation: deal.pickupLocation,
-          pickupAddress: deal.pickupAddress,
-          pickupWindowStart: deal.pickupWindowStart,
-          pickupWindowEnd: deal.pickupWindowEnd,
-          pickupInstructions: deal.pickupInstructions,
+      // Alert if deal is stuck despite reconciliation attempt
+      if (result.outcome === 'RESUMED' || result.outcome === 'CLOSED_SUCCESS') {
+        // Check if deal is STILL in a non-terminal state after processing
+        const dealAfter = await prisma.deal.findUnique({
+          where: { id: dealId },
+          select: { status: true },
         });
-      }
-
-      results.push({
-        dealId: deal.id,
-        outcome: "CLOSED_SUCCESS",
-        confirmedCount,
-        finalTier: tierIndex,
-        captured: capturedCount,
-        captureFailed: captureFailedCount,
-      });
-    } else {
-      // ─── Branch B: threshold not met ─────────────────────────────────────────
-
-      // Atomically mark deal as CLOSING_FAILED + set closingProcessedAt.
-      await prisma.deal.update({
-        where: { id: deal.id },
-        data: {
-          status: DealStatus.CLOSING_FAILED,
-          closingProcessedAt: now,
-        },
-      });
-
-      let voidedCount = 0;
-      const allOrders = [...authorizedOrders, ...pendingOrders];
-
-      for (const order of allOrders) {
-        if (!order.stripePaymentIntentId) {
-          // No PI — skip Stripe, void locally
-          await prisma.$transaction([
-            prisma.order.update({
-              where: { id: order.id },
-              data: { status: OrderStatus.VOIDED },
-            }),
-            prisma.auditLog.create({
-              data: {
-                action: "ORDER_VOID_STRIPE_SKIPPED_NO_INTENT",
-                entityType: "Order",
-                entityId: order.id,
-                metadata: {
-                  dealId: deal.id,
-                  confirmedCount,
-                  threshold: deal.minimumMembers,
-                },
-              },
-            }),
-          ]);
-          voidedCount++;
-          continue;
+        if (
+          dealAfter &&
+          (dealAfter.status === DealStatus.CLOSING_SUCCESS ||
+            dealAfter.status === DealStatus.CLOSING_FAILED)
+        ) {
+          await sendAdminAlert(
+            'DEAL_STUCK',
+            `deal_stuck:${dealId}`,
+            `Deal ${dealId} remains in ${dealAfter.status} after reconciliation attempt. Manual review needed.`,
+          );
         }
-
-        try {
-          await stripe.paymentIntents.cancel(order.stripePaymentIntentId);
-        } catch (err: unknown) {
-          if (!isAlreadyCanceled(err)) {
-            const e = err as { message?: string };
-            console.warn(
-              "[close-deals] Could not cancel PI for failed deal:",
-              order.stripePaymentIntentId,
-              e?.message,
-            );
-          }
-        }
-
-        await prisma.$transaction([
-          prisma.order.update({
-            where: { id: order.id },
-            data: { status: OrderStatus.VOIDED },
-          }),
-          prisma.auditLog.create({
-            data: {
-              action: "ORDER_VOIDED_BY_THRESHOLD_NOT_MET",
-              entityType: "Order",
-              entityId: order.id,
-              metadata: {
-                dealId: deal.id,
-                confirmedCount,
-                threshold: deal.minimumMembers,
-                stripePaymentIntentId: order.stripePaymentIntentId,
-              },
-            },
-          }),
-        ]);
-        voidedCount++;
       }
 
-      // Transition deal to CANCELLED
-      await prisma.$transaction([
-        prisma.deal.update({
-          where: { id: deal.id },
-          data: { status: DealStatus.CANCELLED },
-        }),
-        prisma.auditLog.create({
-          data: {
-            action: "DEAL_CLOSED_FAILED",
-            entityType: "Deal",
-            entityId: deal.id,
-            metadata: { confirmedCount, threshold: deal.minimumMembers },
-          },
-        }),
-      ]);
+      results.push(result);
+    } catch (err) {
+      const e = err as { message?: string };
+      console.error('[close-deals] closeOneDeal threw for deal', dealId, e?.message);
 
-      // Notify all voided members
-      for (const order of allOrders) {
-        await sendDealClosedFailed({
-          to: order.user.email,
-          memberName: order.user.name,
-          dealTitle: deal.title,
-        });
-      }
+      await sendAdminAlert(
+        'DEAL_CLOSE_ERROR',
+        `close_error:${dealId}`,
+        `Reconciliation: closeOneDeal threw for deal ${dealId}: ${e?.message ?? String(err)}`,
+      );
 
-      results.push({
-        dealId: deal.id,
-        outcome: "CLOSED_FAILED",
-        confirmedCount,
-        threshold: deal.minimumMembers,
-        voided: voidedCount,
-      });
+      results.push({ dealId, outcome: 'ERROR', error: e?.message });
     }
   }
 
-  return NextResponse.json({ processed: results.length, results });
+  // ── 4. Auth-expiry email retry sweep ──────────────────────────────────────
+  // Picks up any auth-expiry notification emails that failed to send (e.g.,
+  // transient Resend outage during the webhook invocation). Looks back 7 days
+  // to cover the maximum deal window. Each call to sendAuthExpiryEmailForOrder
+  // is idempotent: it checks SENT state and skips if already delivered.
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const authExpiryVoids = await prisma.auditLog.findMany({
+    where: {
+      action: 'ORDER_VOIDED_AUTH_EXPIRY_RISK',
+      createdAt: { gte: sevenDaysAgo },
+    },
+    select: { entityId: true },
+    distinct: ['entityId'],
+  });
+
+  for (const { entityId: orderId } of authExpiryVoids) {
+    const err = await sendAuthExpiryEmailForOrder(orderId);
+    if (err) {
+      if (err.startsWith('AUTH_EXPIRY_EMAIL_MAX_ATTEMPTS:')) {
+        await sendAdminAlert(
+          'CLOSE_EMAIL_FAILED',
+          `auth_expiry_email:${orderId}`,
+          `Auth-expiry notification email exceeded max attempts for order ${orderId}.`,
+        );
+      } else {
+        console.error('[close-deals] Auth-expiry email error for order', orderId, err);
+      }
+    }
+  }
+
+  return NextResponse.json({
+    processed: dealIds.length,
+    overdue: overdueOpen.length,
+    stuckSuccess: stuckSuccess.length,
+    stuckFailed: stuckFailed.length,
+    authExpiryEmailsSwept: authExpiryVoids.length,
+    results,
+  });
 }

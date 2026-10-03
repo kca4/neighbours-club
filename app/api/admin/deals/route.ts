@@ -100,6 +100,7 @@ export async function POST(req: NextRequest) {
         maxQuantityPerMember: data.maxQuantityPerMember,
         opensAt: new Date(data.opensAt),
         closesAt: new Date(data.closesAt),
+        supplierCutoffAt: data.supplierCutoffAt ? new Date(data.supplierCutoffAt) : null,
         pickupLocation: data.pickupLocation,
         pickupAddress: data.pickupAddress,
         pickupWindowStart: new Date(data.pickupWindowStart),

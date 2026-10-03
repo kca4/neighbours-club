@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
 import { DealStatus, OrderStatus } from "@prisma/client";
+import { calculateSafeRejoinAt } from "@/lib/groupbuy/auth-expiry";
 
 const CONFIRMED_STATUSES: OrderStatus[] = [
   OrderStatus.AUTHORIZED,
@@ -124,6 +125,7 @@ export async function POST(
       quantity: true,
       stripePaymentIntentId: true,
       createdAt: true,
+      captureBeforeAt: true,
     },
   });
 
@@ -152,6 +154,65 @@ export async function POST(
       },
       { status: 409 },
     );
+  }
+
+  // Safe-rejoin window: if the previous authorization expired, block premature rejoins
+  if (
+    existingOrder &&
+    TERMINAL_STATUSES.includes(existingOrder.status) &&
+    existingOrder.captureBeforeAt
+  ) {
+    const safetyMinutes = parseInt(
+      process.env.AUTH_EXPIRY_SAFETY_MINUTES ?? "30",
+      10,
+    );
+    const { safeRejoinAt, canRejoin } = calculateSafeRejoinAt(
+      existingOrder.captureBeforeAt,
+      existingOrder.createdAt,
+      deal.closesAt,
+      safetyMinutes,
+    );
+
+    const supportEmail =
+      process.env.MEMBER_SUPPORT_EMAIL ??
+      (process.env.EMAIL_FROM?.match(/<(.+?)>/)?.[1] ?? "hello@neighborsclub.ca");
+
+    if (!canRejoin) {
+      return NextResponse.json(
+        {
+          error: "REJOIN_NOT_POSSIBLE",
+          messageEN:
+            `We can't hold a payment long enough for this deal, so re-joining isn't possible this time. You haven't been charged. Questions? Reach us at ${supportEmail}.`,
+          messageFR:
+            `Nous ne pouvons pas réserver le paiement assez longtemps pour cet achat groupé. Il n'est donc pas possible de vous réinscrire cette fois-ci. Aucun montant n'a été débité. Des questions? Écrivez-nous à ${supportEmail}.`,
+        },
+        { status: 409 },
+      );
+    }
+    if (safeRejoinAt > new Date()) {
+      const fmtOpts: Intl.DateTimeFormatOptions = {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "America/Toronto",
+        timeZoneName: "short",
+      };
+      const safeRejoinAtEN = safeRejoinAt.toLocaleString("en-CA", fmtOpts);
+      const safeRejoinAtFR = safeRejoinAt.toLocaleString("fr-CA", fmtOpts);
+      const closeAtEN = deal.closesAt.toLocaleString("en-CA", fmtOpts);
+      const closeAtFR = deal.closesAt.toLocaleString("fr-CA", fmtOpts);
+      return NextResponse.json(
+        {
+          error: "REJOIN_TOO_EARLY",
+          safeRejoinAt: safeRejoinAt.toISOString(),
+          messageEN: `You can re-join this deal from ${safeRejoinAtEN}. Joining before then would lead to the same cancellation. The deal closes on ${closeAtEN}. You haven't been charged.`,
+          messageFR: `Vous pourrez vous réinscrire à cet achat groupé à partir du ${safeRejoinAtFR}. Une inscription avant ce moment entraînerait la même annulation. L'achat groupé se termine le ${closeAtFR}. Aucun montant n'a été débité.`,
+        },
+        { status: 409 },
+      );
+    }
   }
 
   // Tier-1 price is the max possible charge
@@ -192,6 +253,7 @@ export async function POST(
             finalAmount: null,
             pickedUpAt: null,
             pickedUpBy: null,
+            captureBeforeAt: null,
           },
         });
         await tx.auditLog.create({

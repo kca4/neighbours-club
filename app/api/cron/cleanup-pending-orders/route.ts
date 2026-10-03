@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { OrderStatus } from "@prisma/client";
+import { sendRecoveryExpiredEmailForOrder } from "@/lib/groupbuy/recovery-expiry";
 
 export async function POST(req: NextRequest) {
   const cronSecret = req.headers.get("x-cron-secret");
@@ -65,5 +66,48 @@ export async function POST(req: NextRequest) {
     results.push({ orderId: order.id, voided: true, stripeError });
   }
 
-  return NextResponse.json({ voided: results.length, results });
+  // ── Sweep: CAPTURE_FAILED orders whose recovery window has expired ──────────
+  const now = new Date();
+  const expiredRecoveries = await prisma.order.findMany({
+    where: {
+      status: OrderStatus.CAPTURE_FAILED,
+      recoveryExpiresAt: { lt: now },
+    },
+    select: { id: true, recoveryExpiresAt: true },
+  });
+
+  const expiredResults: { orderId: string; voided: boolean; emailError?: string }[] = [];
+
+  for (const order of expiredRecoveries) {
+    await prisma.$transaction([
+      prisma.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.VOIDED },
+      }),
+      prisma.auditLog.create({
+        data: {
+          action: 'ORDER_VOIDED_RECOVERY_EXPIRED',
+          entityType: 'Order',
+          entityId: order.id,
+          metadata: {
+            recoveryExpiresAt: order.recoveryExpiresAt?.toISOString() ?? null,
+            source: 'cleanup_cron',
+          },
+        },
+      }),
+    ]);
+
+    const emailErr = await sendRecoveryExpiredEmailForOrder(order.id);
+    if (emailErr) {
+      console.error('[cleanup] sendRecoveryExpiredEmailForOrder failed:', emailErr);
+    }
+    expiredResults.push({ orderId: order.id, voided: true, emailError: emailErr ?? undefined });
+  }
+
+  return NextResponse.json({
+    voided: results.length,
+    results,
+    recoveryExpired: expiredResults.length,
+    expiredResults,
+  });
 }

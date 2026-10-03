@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
 import { OrderStatus } from "@prisma/client";
+import { sendRecoveryExpiredEmailForOrder } from "@/lib/groupbuy/recovery-expiry";
 
 export async function POST(
   _req: NextRequest,
@@ -29,6 +30,7 @@ export async function POST(
       quantity: true,
       userId: true,
       dealId: true,
+      recoveryExpiresAt: true,
       deal: {
         select: {
           id: true,
@@ -46,6 +48,53 @@ export async function POST(
     return NextResponse.json(
       { error: "Recovery link not valid or expired" },
       { status: 404 },
+    );
+  }
+
+  // Recovery window expired — void the order if still CAPTURE_FAILED and return 410
+  if (order.recoveryExpiresAt && order.recoveryExpiresAt <= new Date()) {
+    const supportEmail =
+      process.env.MEMBER_SUPPORT_EMAIL ??
+      (process.env.EMAIL_FROM?.match(/<(.+?)>/)?.[1] ?? 'hello@neighborsclub.ca');
+
+    if (order.status === OrderStatus.CAPTURE_FAILED) {
+      await prisma.$transaction([
+        prisma.order.update({
+          where: { id: order.id },
+          data: { status: OrderStatus.VOIDED },
+        }),
+        prisma.auditLog.create({
+          data: {
+            action: 'ORDER_VOIDED_RECOVERY_EXPIRED',
+            entityType: 'Order',
+            entityId: order.id,
+            metadata: {
+              recoveryToken,
+              recoveryExpiresAt: order.recoveryExpiresAt.toISOString(),
+              source: 'recovery_api',
+            },
+          },
+        }),
+      ]);
+      // Non-blocking cancellation email (idempotency-checked)
+      sendRecoveryExpiredEmailForOrder(order.id).catch((err) => {
+        console.error('[recover] sendRecoveryExpiredEmailForOrder failed:', err);
+      });
+    }
+
+    return NextResponse.json(
+      {
+        error: 'RECOVERY_EXPIRED',
+        messageEN:
+          `This payment link has expired. The payment deadline for ${order.deal.title} has passed, ` +
+          `so your order was cancelled. You haven't been charged. ` +
+          `Questions? Reach us at ${supportEmail}.`,
+        messageFR:
+          `Ce lien de paiement a expiré. Le délai de paiement pour ${order.deal.title} est passé, ` +
+          `votre commande a donc été annulée. Aucun montant n'a été débité. ` +
+          `Des questions\u00A0? Écrivez-nous à ${supportEmail}.`,
+      },
+      { status: 410 },
     );
   }
 
