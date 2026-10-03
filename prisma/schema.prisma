@@ -236,6 +236,8 @@ model Deal {
   finalTierIndex         Int?
   midpointReminderSentAt DateTime?
   closingProcessedAt     DateTime?
+  qstashMessageId        String?    // QStash message ID for the deadline trigger (for cancellation/debugging)
+  supplierCutoffAt       DateTime?  // Latest time final paid quantities can be submitted to supplier; required at publish; copied to Order.recoveryExpiresAt at CAPTURE_FAILED
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -279,6 +281,8 @@ model Order {
   pickedUpAt           DateTime?
   pickedUpBy           String?
   pickupReminderSentAt DateTime?
+  captureBeforeAt      DateTime? // Stripe auth expiry timestamp, stored at AUTHORIZED time
+  recoveryExpiresAt    DateTime? // Copied from deal.supplierCutoffAt when order enters CAPTURE_FAILED; recovery link expires at this time
   notes                String?   @db.Text
 
   createdAt DateTime @default(now())
