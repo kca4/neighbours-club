@@ -11,18 +11,20 @@ function CheckoutForm({
   quantity,
   maxAmountDollars,
   closesAt,
+  supportEmail,
   onSuccess,
 }: {
   slug: string;
   quantity: number;
   maxAmountDollars: number;
   closesAt: Date;
+  supportEmail?: string;
   onSuccess: () => void;
 }) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ en: string; fr: string } | null>(null);
 
   // Suppress unused-variable warning for slug — it's used via closure in
   // the confirmPayment return_url fallback.
@@ -45,7 +47,10 @@ function CheckoutForm({
       });
 
       if (confirmError) {
-        setError(confirmError.message ?? "Payment authorization failed.");
+        setError({
+          en: "We couldn't authorize your payment. Please check your payment details and try again.",
+          fr: "Nous n'avons pas pu autoriser votre paiement. Vérifiez vos renseignements de paiement et réessayez.",
+        });
         setSubmitting(false);
         return;
       }
@@ -85,9 +90,22 @@ function CheckoutForm({
       <PaymentElement />
 
       {error && (
-        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </p>
+        <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 space-y-1">
+          <p>{error.en}</p>
+          <p className="opacity-80">{error.fr}</p>
+          {supportEmail && (
+            <p className="pt-1 text-xs opacity-70">
+              Still having trouble? Reach us at{" "}
+              <a href={`mailto:${supportEmail}`} className="underline">
+                {supportEmail}
+              </a>
+              {" — "}Le problème persiste? Écrivez-nous à{" "}
+              <a href={`mailto:${supportEmail}`} className="underline">
+                {supportEmail}
+              </a>
+            </p>
+          )}
+        </div>
       )}
 
       <button
@@ -164,11 +182,13 @@ export default function JoinDealForm({
   maxQuantityPerMember,
   tier1PriceDollars,
   closesAt,
+  supportEmail,
 }: {
   slug: string;
   maxQuantityPerMember: number;
   tier1PriceDollars: number;
   closesAt: Date;
+  supportEmail?: string;
 }) {
   const [step, setStep] = useState<"quantity" | "payment" | "confirmed">(
     "quantity",
@@ -176,7 +196,7 @@ export default function JoinDealForm({
   const [quantity, setQuantity] = useState(1);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ en: string; fr: string; showMyDealsLink?: boolean } | null>(null);
   const [richError, setRichError] = useState<{ en: string; fr: string } | null>(null);
 
   const maxAmount = tier1PriceDollars * quantity;
@@ -206,14 +226,63 @@ export default function JoinDealForm({
 
         if (!res.ok) {
           const errData = data as { error?: string; messageEN?: string; messageFR?: string };
-          const code = errData?.error;
+          const code = errData?.error ?? "";
+
           if (
-            (code === 'REJOIN_TOO_EARLY' || code === 'REJOIN_NOT_POSSIBLE') &&
+            (code === "REJOIN_TOO_EARLY" || code === "REJOIN_NOT_POSSIBLE") &&
             errData.messageEN
           ) {
-            setRichError({ en: errData.messageEN, fr: errData.messageFR ?? '' });
+            setRichError({ en: errData.messageEN, fr: errData.messageFR ?? "" });
           } else {
-            setError(code ?? 'Something went wrong. Please try again.');
+            const maxMatch = code.match(/^Maximum (\d+)/);
+            if (maxMatch) {
+              const n = parseInt(maxMatch[1], 10);
+              setError({
+                en: `You can order up to ${n} ${n === 1 ? "unit" : "units"} per member for this group buy.`,
+                fr: `Vous pouvez commander jusqu'à ${n} ${n === 1 ? "unité" : "unités"} par membre pour cet achat groupé.`,
+              });
+            } else if (code === "This deal is not currently open") {
+              setError({
+                en: "This group buy isn't open right now.",
+                fr: "Cet achat groupé n'est pas ouvert pour le moment.",
+              });
+            } else if (code === "This deal has already closed") {
+              setError({
+                en: "This group buy has already closed.",
+                fr: "Cet achat groupé est déjà terminé.",
+              });
+            } else if (code === "This deal is full") {
+              setError({
+                en: "This group buy has reached its available quantity and is now full.",
+                fr: "Cet achat groupé a atteint la quantité disponible et est maintenant complet.",
+              });
+            } else if (code.includes("active order")) {
+              setError({
+                en: "You already have an active order for this group buy. Go to My Deals to view or manage it.",
+                fr: "Vous avez déjà une commande active pour cet achat groupé. Consultez Mes achats groupés pour la voir ou la gérer.",
+                showMyDealsLink: true,
+              });
+            } else if (code === "Deal has no pricing tiers") {
+              setError({
+                en: "This group buy isn't available to join right now. Please try again later.",
+                fr: "Il n'est pas possible de participer à cet achat groupé pour le moment. Veuillez réessayer plus tard.",
+              });
+            } else if (code.includes("create order")) {
+              setError({
+                en: "We couldn't create your order. Please try again.",
+                fr: "Nous n'avons pas pu créer votre commande. Veuillez réessayer.",
+              });
+            } else if (code.includes("Payment setup")) {
+              setError({
+                en: "We couldn't start the payment authorization. Please try again.",
+                fr: "Nous n'avons pas pu démarrer l'autorisation de paiement. Veuillez réessayer.",
+              });
+            } else {
+              setError({
+                en: "We couldn't create your order. Please try again.",
+                fr: "Nous n'avons pas pu créer votre commande. Veuillez réessayer.",
+              });
+            }
           }
           return;
         }
@@ -222,7 +291,10 @@ export default function JoinDealForm({
         setClientSecret(okData.clientSecret);
         setStep("payment");
       } catch {
-        setError("Network error. Please check your connection and try again.");
+        setError({
+          en: "We couldn't connect. Check your internet connection and try again.",
+          fr: "Nous n'avons pas pu nous connecter. Vérifiez votre connexion Internet et réessayez.",
+        });
       } finally {
         setSubmitting(false);
       }
@@ -256,6 +328,7 @@ export default function JoinDealForm({
             quantity={quantity}
             maxAmountDollars={maxAmount}
             closesAt={closesAt}
+            supportEmail={supportEmail}
             onSuccess={() => setStep("confirmed")}
           />
         </Elements>
@@ -312,17 +385,21 @@ export default function JoinDealForm({
         </div>
       )}
       {error && (
-        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-          {error.includes("active order") && (
-            <>
-              {" "}
+        <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 space-y-1">
+          <p>{error.en}</p>
+          <p className="opacity-80">{error.fr}</p>
+          {error.showMyDealsLink && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1">
               <a href="/my-deals" className="font-semibold underline">
-                View My Deals
+                Go to My Deals
               </a>
-            </>
+              <span className="opacity-40" aria-hidden="true">·</span>
+              <a href="/my-deals" className="font-semibold underline opacity-80">
+                Voir mes achats groupés
+              </a>
+            </div>
           )}
-        </p>
+        </div>
       )}
 
       <button

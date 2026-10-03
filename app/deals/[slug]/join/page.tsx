@@ -80,6 +80,10 @@ export default async function JoinDealPage({
 
   const tier1PriceDollars = Number(tier1.pricePerUnit.toString());
 
+  const supportEmail =
+    process.env.MEMBER_SUPPORT_EMAIL ??
+    (process.env.EMAIL_FROM?.match(/<(.+?)>/)?.[1] ?? "hello@neighborsclub.ca");
+
   return (
     <main className="mx-auto max-w-lg px-4 py-12 sm:px-6">
       {/* Breadcrumb */}
@@ -114,6 +118,7 @@ export default async function JoinDealPage({
           maxQuantityPerMember={deal.maxQuantityPerMember}
           tier1PriceDollars={tier1PriceDollars}
           closesAt={deal.closesAt}
+          supportEmail={supportEmail}
         />
       </div>
     </main>

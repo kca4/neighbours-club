@@ -14,6 +14,14 @@ function fmt(n: number) {
   });
 }
 
+function fmtFR(n: number) {
+  return n.toLocaleString("fr-CA", {
+    style: "currency",
+    currency: "CAD",
+    minimumFractionDigits: 2,
+  });
+}
+
 export default async function RecoveryPaymentPage({
   params,
 }: {
@@ -205,16 +213,45 @@ export default async function RecoveryPaymentPage({
   const finalPrice = order.deal.finalPrice ? Number(order.deal.finalPrice) : null;
   const amountDollars = finalPrice !== null ? finalPrice * order.quantity : 0;
 
-  const pickupWindow = `${order.deal.pickupWindowStart.toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric" })} – ${order.deal.pickupWindowEnd.toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric" })}`;
+  const pickupWindowOpts: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "numeric" };
+  const pickupWindowEN = `${order.deal.pickupWindowStart.toLocaleDateString("en-CA", pickupWindowOpts)} – ${order.deal.pickupWindowEnd.toLocaleDateString("en-CA", pickupWindowOpts)}`;
+  const pickupWindowFR = `${order.deal.pickupWindowStart.toLocaleDateString("fr-CA", pickupWindowOpts)} – ${order.deal.pickupWindowEnd.toLocaleDateString("fr-CA", pickupWindowOpts)}`;
+
+  const deadlineFmtOpts: Intl.DateTimeFormatOptions = {
+    timeZone: "America/Toronto",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  };
+  const paymentDeadlineEN = order.recoveryExpiresAt
+    ? order.recoveryExpiresAt.toLocaleString("en-CA", deadlineFmtOpts)
+    : null;
+  const paymentDeadlineFR = order.recoveryExpiresAt
+    ? order.recoveryExpiresAt.toLocaleString("fr-CA", deadlineFmtOpts)
+    : null;
 
   return (
     <main className="mx-auto max-w-lg px-4 py-12 sm:px-6">
       <div className="mb-1 text-xs font-semibold uppercase tracking-widest text-amber-600">
         Action required
       </div>
-      <h1 className="mb-6 text-2xl font-bold text-foreground">
+      <h1 className="mb-1 text-2xl font-bold text-foreground">
         Complete your payment
       </h1>
+      <p className="mb-3 text-lg font-semibold text-foreground/60">
+        Finaliser votre paiement
+      </p>
+      <p className="mb-1 text-sm text-foreground/70">
+        Your order is waiting for payment. Complete your payment before the
+        deadline below to keep your order.
+      </p>
+      <p className="mb-6 text-sm text-foreground/60">
+        Votre commande est en attente de paiement. Finalisez votre paiement
+        avant la date limite ci-dessous pour conserver votre commande.
+      </p>
 
       {/* Order summary */}
       <div className="mb-6 rounded-2xl border border-foreground/10 bg-white p-6">
@@ -222,32 +259,63 @@ export default async function RecoveryPaymentPage({
           Order summary
         </h2>
         <dl className="space-y-3 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-foreground/60">Deal</dt>
+          <div className="flex justify-between gap-4">
+            <dt className="text-foreground/60">
+              Group buy
+              <span className="block text-xs opacity-70">Achat groupé</span>
+            </dt>
             <dd className="font-medium text-foreground text-right">
               {order.deal.title}
             </dd>
           </div>
-          <div className="flex justify-between">
-            <dt className="text-foreground/60">Supplier</dt>
+          <div className="flex justify-between gap-4">
+            <dt className="text-foreground/60">
+              Supplier
+              <span className="block text-xs opacity-70">Fournisseur</span>
+            </dt>
             <dd className="font-medium text-foreground">{order.deal.supplier.name}</dd>
           </div>
-          <div className="flex justify-between">
-            <dt className="text-foreground/60">Quantity</dt>
+          <div className="flex justify-between gap-4">
+            <dt className="text-foreground/60">
+              Quantity
+              <span className="block text-xs opacity-70">Quantité</span>
+            </dt>
             <dd className="font-medium text-foreground">{order.quantity}</dd>
           </div>
-          <div className="flex justify-between">
-            <dt className="text-foreground/60">Pickup</dt>
+          <div className="flex justify-between gap-4">
+            <dt className="text-foreground/60">
+              Pickup
+              <span className="block text-xs opacity-70">Retrait</span>
+            </dt>
             <dd className="font-medium text-foreground text-right">
               {order.deal.pickupLocation}
               <br />
-              <span className="font-normal text-foreground/60">{pickupWindow}</span>
+              <span className="font-normal text-foreground/60">{pickupWindowEN}</span>
+              <br />
+              <span className="font-normal text-foreground/60 text-xs">{pickupWindowFR}</span>
             </dd>
           </div>
-          <div className="flex justify-between border-t border-foreground/10 pt-3">
-            <dt className="font-semibold text-foreground">Amount due</dt>
-            <dd className="font-bold text-foreground text-lg">
+          {paymentDeadlineEN && (
+            <div className="flex justify-between gap-4">
+              <dt className="text-foreground/60">
+                Payment deadline
+                <span className="block text-xs opacity-70">Date limite de paiement</span>
+              </dt>
+              <dd className="font-medium text-foreground text-right">
+                {paymentDeadlineEN}
+                <br />
+                <span className="font-normal text-foreground/60 text-xs">{paymentDeadlineFR}</span>
+              </dd>
+            </div>
+          )}
+          <div className="flex justify-between gap-4 border-t border-foreground/10 pt-3">
+            <dt className="font-semibold text-foreground">
+              Amount due
+              <span className="block text-xs font-normal text-foreground/60">Montant dû</span>
+            </dt>
+            <dd className="font-bold text-foreground text-right text-lg">
               {fmt(amountDollars)}
+              <span className="block text-sm font-normal text-foreground/60">{fmtFR(amountDollars)}</span>
             </dd>
           </div>
         </dl>
@@ -258,6 +326,7 @@ export default async function RecoveryPaymentPage({
         <RecoveryPaymentForm
           recoveryToken={recoveryToken}
           amountDollars={amountDollars}
+          supportEmail={supportEmail}
         />
       </div>
 
