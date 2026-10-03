@@ -86,13 +86,9 @@ export async function POST(
       {
         error: 'RECOVERY_EXPIRED',
         messageEN:
-          `This payment link has expired. The payment deadline for ${order.deal.title} has passed, ` +
-          `so your order was cancelled. You haven't been charged. ` +
-          `Questions? Reach us at ${supportEmail}.`,
+          "The payment deadline has passed, so this order can no longer be paid. You haven't been charged.",
         messageFR:
-          `Ce lien de paiement a expiré. Le délai de paiement pour ${order.deal.title} est passé, ` +
-          `votre commande a donc été annulée. Aucun montant n'a été débité. ` +
-          `Des questions\u00A0? Écrivez-nous à ${supportEmail}.`,
+          "La date limite de paiement est passée; cette commande ne peut donc plus être payée. Aucun montant n'a été débité.",
       },
       { status: 410 },
     );
